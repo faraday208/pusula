@@ -58,6 +58,9 @@ yoksa `~/.claude`'u gösterir.
 }
 ```
 
+Windows'ta yolu `/` ile (`C:/Users/sen/notlar`) ya da çift ters bölüyle (`C:\\Users\\sen\\notlar`) yaz: dosya JSON'dur ve tek
+ters bölü bir kaçış dizisi başlatır.
+
 - **Ekle ya da kaldır:** Kaynaklar sayfasında **Klasör seç…** diskte bulduğu kasaları listeler ve klasörlerde
   gezinmeni sağlar. Değişiklik `sources.json`'a yazılır; dosyayı elle düzenlemek de olur, yeniden başlatmak gerekmez.
 - **Profil** kendiliğinden anlaşılır: `.obsidian/` içeren klasör Obsidian kasasıdır, Claude Code yapılandırma

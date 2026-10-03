@@ -58,6 +58,9 @@ exact path). Without that file it shows `~/.claude`.
 }
 ```
 
+On Windows, write a path with forward slashes (`C:/Users/you/notes`) or doubled backslashes (`C:\\Users\\you\\notes`): the file is
+JSON, where a single backslash starts an escape.
+
 - **Add or remove** sources on the Sources page: **Choose folder…** lists the vaults it finds on the disk and lets
   you browse folders. Changes are written to `sources.json`; editing the file by hand works too, without a restart.
 - **Profiles** are detected automatically: a folder with `.obsidian/` is an Obsidian vault, a Claude Code
