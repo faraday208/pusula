@@ -1074,3 +1074,27 @@ describe('the folder picker', () => {
     }
   });
 });
+
+describe('the version of pusula', () => {
+  it('the last line of the sources page reads "pusula v0.1.0 · Sürüm notları" / "pusula v0.1.0 · Release notes", and the tooltip of the brand "pusula v0.1.0"', () => {
+    assert.equal(i18n.format(tr['about.version'], { version: '0.1.0' }), 'pusula v0.1.0');
+    assert.equal(i18n.format(en['about.version'], { version: '0.1.0' }), 'pusula v0.1.0');
+    assert.equal(tr['about.releases'], 'Sürüm notları');
+    assert.equal(en['about.releases'], 'Release notes');
+  });
+
+  it('the version is the only thing that is filled in; the name of the link has nothing to fill', () => {
+    for (const dict of [tr, en]) {
+      assert.deepEqual(placeholders(dict['about.version']), ['version']);
+      assert.deepEqual(placeholders(dict['about.releases']), []);
+    }
+  });
+
+  it('it reads the same through t() in each language', () => {
+    for (const lang of ['tr', 'en']) {
+      i18n.setLang(lang);
+      assert.equal(i18n.t('about.version', { version: '0.1.0' }), 'pusula v0.1.0', lang);
+    }
+    i18n.setLang('en');
+  });
+});

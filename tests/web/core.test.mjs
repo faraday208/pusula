@@ -3475,6 +3475,37 @@ describe('sourcesHost (the machine and whether the network may change the list)'
   });
 });
 
+describe('appVersion (which pusula the server says it is, from the answer of /api/sources)', () => {
+  it('the number as the server wrote it, without the spaces around it', () => {
+    assert.equal(core.appVersion({ version: '0.1.0' }), '0.1.0');
+    assert.equal(core.appVersion({ version: '  1.20.3 \n' }), '1.20.3');
+    assert.equal(core.appVersion({ version: '2.0' }), '2.0');
+    assert.equal(core.appVersion({ sources: [], canEdit: true, machine: 'devbox', remoteEdit: false, version: '0.1.0' }), '0.1.0', 'in a whole answer');
+  });
+
+  it('a pre-release label and the build metadata of a version are part of it', () => {
+    assert.equal(core.appVersion({ version: '0.2.0-rc.1' }), '0.2.0-rc.1');
+    assert.equal(core.appVersion({ version: '0.2.0+1a2b3c4' }), '0.2.0+1a2b3c4');
+    assert.equal(core.appVersion({ version: '1.2.3-beta.1+build.5' }), '1.2.3-beta.1+build.5');
+  });
+
+  it('an older server says none: no version, so the page draws nothing for it', () => {
+    for (const data of [{}, { sources: [], canEdit: true }, null, undefined, 'x', 7, []]) assert.equal(core.appVersion(data), null, JSON.stringify(data));
+  });
+
+  it('what is not a version number is none: another type, an empty text, a word, a "v" in front, text around it, markup', () => {
+    const notVersions = [null, undefined, 7, 1.5, {}, [], true, '', '   ', 'dev', 'unknown', 'v0.1.0', '0', '1.', '.1', '1..2', '0.1.0-', '0.1.0 beta', '0.1.0\n0.2.0', '<b>0.1.0</b>', '1.2.3.4.5'];
+    for (const version of notVersions) assert.equal(core.appVersion({ version }), null, JSON.stringify(version));
+  });
+});
+
+describe('RELEASES_URL (where the release notes of pusula are)', () => {
+  it('is the releases page of the repository, over https', () => {
+    assert.equal(core.RELEASES_URL, 'https://github.com/faraday208/pusula/releases');
+    assert.equal(new URL(core.RELEASES_URL).protocol, 'https:');
+  });
+});
+
 describe('sourceLock (what the "add a folder" box says where this browser may not change the list)', () => {
   const FILE = '/x/sources.json';
   const host = { machine: 'devbox', remoteEdit: false };

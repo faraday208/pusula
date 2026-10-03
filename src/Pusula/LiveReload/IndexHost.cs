@@ -10,9 +10,18 @@ namespace Pusula.LiveReload;
 /// others alone.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Announcements form a linked list of tasks: every <see cref="IndexChange"/> carries the task of the next one, so a
 /// subscriber that follows the chain from the point where it subscribed cannot miss a change, however slowly it
 /// reads, and the host keeps no per-subscriber state.
+/// </para>
+/// <para>
+/// A host runs; <see cref="StopAsync"/> stops it (the sequences end, the timer and the watcher are disposed, a rebuild is
+/// refused from then on); <see cref="Dispose"/> takes it down (what is left is disposed). Either may come first, any number
+/// of times, at the same time. A rebuild and a stop never overlap (the gate). <see cref="Dispose"/> closes the gate (see
+/// <see cref="ClosableGate"/>): the watcher, the timer, the cancellation source and the gate itself are disposed after
+/// the last rebuild or stop that was under way, so none of them is disposed while it is in use.
+/// </para>
 /// </remarks>
 internal sealed partial class IndexHost : IIndexProvider, IDisposable
 {
@@ -25,16 +34,19 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
     private readonly ILogger<IndexHost> _logger;
     private readonly StringComparison _comparison = PathComparison.Current;
 
-    // One rebuild at a time: timer callbacks may overlap when a rebuild takes longer than the debounce delay.
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    // One rebuild or stop at a time: timer callbacks may overlap when a rebuild takes longer than the debounce delay.
+    private readonly ClosableGate _gate = new();
     private readonly CancellationTokenSource _stopping = new();
+
+    // The token of _stopping, kept apart because it can be asked about after _stopping was disposed (it was cancelled
+    // before that), while _stopping.Token throws then.
+    private readonly CancellationToken _stoppingToken;
 
     private ITimer? _timer;
     private FileSystemWatcher? _watcher;
     private bool _watcherNeedsReset;
     private ConfigIndex? _current;
     private Node? _tail;
-    private int _disposed;
 
     /// <summary>Creates the host; nothing is read until <see cref="StartAsync"/>.</summary>
     /// <param name="builder">Builds the index.</param>
@@ -47,10 +59,14 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
         _root = root;
         _profile = profile;
         _logger = logger;
+        _stoppingToken = _stopping.Token;
     }
 
     /// <summary>How long to wait before trying to start the file watcher again after it failed to start.</summary>
     internal TimeSpan WatcherRetryDelay { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>How long <see cref="Dispose"/> waits for a rebuild that is under way. The host is taken down when the rebuild is done all the same, when this is too short.</summary>
+    internal TimeSpan DisposeTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <inheritdoc />
     /// <exception cref="InvalidOperationException">The host has not been started.</exception>
@@ -123,12 +139,26 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
         return Task.CompletedTask;
     }
 
-    /// <summary>Stops watching and ends every <see cref="WatchAsync"/> sequence.</summary>
-    /// <param name="cancellationToken">Not used.</param>
-    public Task StopAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Stops watching and ends every <see cref="WatchAsync"/> sequence, once the rebuild that is under way, if there is
+    /// one, is done. Does nothing for a host that was disposed.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the wait for the rebuild that is under way.</param>
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        Stop();
-        return Task.CompletedTask;
+        if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            StopWatching();
+        }
+        finally
+        {
+            _gate.Exit();
+        }
     }
 
     /// <summary>
@@ -147,14 +177,26 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
 
     /// <summary>
     /// Rebuilds the index now. A rebuild that finds no difference keeps the version and announces nothing;
-    /// otherwise the version is incremented and the change is published. Rebuilds run one at a time.
+    /// otherwise the version is incremented and the change is published. Rebuilds run one at a time. A host that was
+    /// stopped or disposed does not rebuild.
     /// </summary>
     /// <param name="cancellationToken">Cancels the wait for a running rebuild.</param>
     internal async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
+        {
+            // Disposed.
+            return;
+        }
+
         try
         {
+            if (_stoppingToken.IsCancellationRequested)
+            {
+                // Stopped: nobody follows the folder any more, and its watcher is not to be started again.
+                return;
+            }
+
             RestartWatcherIfNeeded();
 
             ConfigIndex previous = Current;
@@ -174,36 +216,35 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
         }
         finally
         {
-            _gate.Release();
+            _gate.Exit();
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Stops the host, as <see cref="StopAsync"/> does, and disposes what it uses: after the rebuild or stop that is under
+    /// way, if there is one, and waiting for it for <see cref="DisposeTimeout"/> at most. Can be called any number of times.
+    /// </summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        if (!_gate.Close(DisposeCore, DisposeTimeout))
         {
-            return;
+            LogDisposeWaiting(_root, DisposeTimeout.TotalSeconds);
         }
+    }
 
-        Stop();
+    // Runs when nobody is in the gate, and nobody can come in.
+    private void DisposeCore()
+    {
+        StopWatching();
         _stopping.Dispose();
-        _gate.Dispose();
     }
 
     // Walks the chain from 'node' on, waiting for each next link.
     private async IAsyncEnumerable<IndexChange> Follow(Node node, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        CancellationTokenSource linked;
-        try
-        {
-            linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stopping.Token);
-        }
-        catch (ObjectDisposedException)
-        {
-            // The host was disposed (its source was removed) before this sequence began: there is nothing to follow.
-            yield break;
-        }
+        // A host that was disposed (its source was removed) before this sequence began has cancelled the token: the
+        // linked one is cancelled at once and there is nothing to follow.
+        CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stoppingToken);
 
         using (linked)
         {
@@ -234,7 +275,8 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
         previous.Next.SetResult(next);
     }
 
-    private void Stop()
+    // Can be repeated. Called with the gate, or when nobody is in it.
+    private void StopWatching()
     {
         _stopping.Cancel();
         _timer?.Dispose();
@@ -323,11 +365,11 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
     {
         try
         {
-            await RefreshAsync(_stopping.Token).ConfigureAwait(false);
+            await RefreshAsync(_stoppingToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is OperationCanceledException or ObjectDisposedException && _stopping.IsCancellationRequested)
+        catch (OperationCanceledException) when (_stoppingToken.IsCancellationRequested)
         {
-            // The application is shutting down.
+            // The host was stopped while the rebuild waited for its turn.
         }
         catch (Exception exception)
         {
@@ -350,6 +392,9 @@ internal sealed partial class IndexHost : IIndexProvider, IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Rebuilding the index of {Root} failed, the previous index stays: {Reason}")]
     private partial void LogRefreshFailed(string reason, string root);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A rebuild of the index of {Root} is still under way after {Seconds} seconds; the host is taken down when it is done")]
+    private partial void LogDisposeWaiting(string root, double seconds);
 
     // One link of the announcement chain: a change and the task of the next link.
     private sealed class Node(IndexChange? change)

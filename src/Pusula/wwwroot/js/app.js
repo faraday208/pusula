@@ -5,7 +5,7 @@
 // output and nothing else; every other node is built with createElement / textContent.
 
 import {
-  addBlock, addSourceBody, ageParts, ageSince, ancestorDirs, arrivalTarget, blockIndexForLine, browseCrumbs, browseFound, browseListing,
+  addBlock, addSourceBody, ageParts, ageSince, ancestorDirs, appVersion, arrivalTarget, blockIndexForLine, browseCrumbs, browseFound, browseListing,
   browseStateJson, browseUrl, budgetParts, buildLinkMap, calloutClass, capitalize,
   changedBlocks, changeName, closedAncestor, copyMethod, createMarkdown, createSlugger, decodeHref, displayPath, displayStatus,
   embedAssetKind, embedName, enumName, fileEnds, fileHash, filesWithTag, findClaudePaths, findInlineTags, findMarkdownLink,
@@ -14,7 +14,7 @@ import {
   linkHref, linkKey, listboxIndex, loadedTokens, loadFailure, LOAD_MODES, loadModesByLayer, mergeLinks, noteFront, noteName, opensQuickOpen,
   orderProjectFolders, overviewDiff, overviewHash, pageIsAtAddress, parseBrowseState, parseCalloutMarker, parseRecent, parseRoute,
   parseUiState, pathHeadCut, percent, pillTarget, positiveLine, profileName, projectFolders, projectLabels, propertiesWithoutTags,
-  pushRecent, quickEntries, quickSearch, readableWikilinks, recentJson, recentResults, REMOTE_EDIT_FLAG, resolveRoute, savedPosition,
+  pushRecent, quickEntries, quickSearch, readableWikilinks, recentJson, recentResults, RELEASES_URL, REMOTE_EDIT_FLAG, resolveRoute, savedPosition,
   scrollTargetTop, skillFile, slugify, sortTags, SOURCE_REFUSALS, sourceErrorCode, sourceFailure, SOURCES_HASH, sourceKey,
   sourceLock, sourcesAccess, sourcesHost, splitIssues, splitLayers, summarizeChange, tagKey, tokenParts, trLocative, uiStateJson,
   withPosition,
@@ -56,6 +56,7 @@ const state = {
   sourcesFile: null, // the file the server reads them from, or null when they came from the command line
   sourcesAccess: { canEdit: false, closed: null, fileError: null }, // may this browser add and remove sources, why not, what is wrong with the file (see `sourcesAccess`)
   host: { machine: null, remoteEdit: false }, // the computer the server runs on, and whether it lets other machines change the list (see `sourcesHost`)
+  appVersion: null, // the version of pusula the server says it is (see `appVersion`); null when it says none, as an older server does
   listed: false, // the server has answered for its sources once, or has been tried and did not: before that the page cannot tell that no source is open
   sourceEdit: { // what the sources page keeps while it is drawn again: the form under the cards, and the card that asks "remove it?"
     path: '', name: '', // what is typed in the form
@@ -518,6 +519,7 @@ async function loadSources() {
   state.sourcesFile = typeof data?.sourcesFile === 'string' && data.sourcesFile !== '' ? data.sourcesFile : null;
   state.sourcesAccess = sourcesAccess(data);
   state.host = sourcesHost(data);
+  state.appVersion = appVersion(data);
   state.listed = true;
   const asking = state.sourceEdit.asking;
   if (asking !== null && !state.sources.some((source) => source.id === asking)) state.sourceEdit.asking = null; // the card that asked is gone
@@ -861,6 +863,7 @@ function sourceUnavailable() {
 /**
  * The switch in the top bar names the open source (its whole path is its tooltip) and opens the menu of sources (see `openSourceMenu`); the
  * brand and the overview link lead to the overview of the open source. With no source open the switch asks for one and there is no overview.
+ * The tooltip of the brand is the version of pusula, where the server says it (an older one does not: then the brand has no tooltip).
  */
 function updateSourceSwitch() {
   const source = state.source;
@@ -869,6 +872,8 @@ function updateSourceSwitch() {
   refs.sourceSwitch.title = source === null ? t('source.pick') : source.path;
   const home = overviewHash(sid());
   refs.brand.href = home;
+  if (state.appVersion === null) refs.brand.removeAttribute('title');
+  else refs.brand.title = t('about.version', { version: state.appVersion });
   refs.overviewLink.href = home;
   refs.overviewLink.hidden = source === null;
   syncNoSource();
@@ -2477,7 +2482,7 @@ function taggedSection(tag) {
  * opened last. A card is a link to the overview of its source; the card of a source whose folder cannot be read says why and leads
  * nowhere. Where this browser may change the list (see `sourcesAccess`) a card also has a way to remove its source. Under the cards is the
  * form that adds one: always, in the same place and under the same title; where this browser may not change the list its boxes are inactive and
- * the box says why and what can be done. Under that, how else one is added, folded.
+ * the box says why and what can be done. Under that, how else one is added, folded. Last of all, which pusula this is (see `versionLine`).
  */
 function sourcesPage() {
   const page = el('div', 'page sources-page');
@@ -2495,6 +2500,8 @@ function sourcesPage() {
     page.append(notice);
   }
   page.append(sourceList(), addSourceForm(), sourcesHelp());
+  const version = versionLine();
+  if (version !== null) page.append(version);
   return page;
 }
 
@@ -2869,6 +2876,25 @@ function sourcesHelp() {
   more.append(`${t('sources.help.more')} `, el('code', 'sources-command', t('sources.command')));
   help.append(more, el('p', 'muted', t('sources.help.auto')));
   return help;
+}
+
+/**
+ * The last line of the sources page: which pusula this is, and where its release notes are. Quiet text, and the one link out of the page: it
+ * opens the release notes in a new tab when the reader follows it, and the page asks that address for nothing. A server that says no version
+ * (an older one) gets no line, and null is returned.
+ */
+function versionLine() {
+  if (state.appVersion === null) return null;
+  const line = el('p', 'version-line', t('about.version', { version: state.appVersion }));
+  const separator = el('span', null, '\u00b7');
+  separator.setAttribute('aria-hidden', 'true');
+  const link = el('a', 'release-link', t('about.releases'));
+  link.href = RELEASES_URL;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.dataset.keep = 'releases';
+  line.append(separator, link);
+  return line;
 }
 
 /**

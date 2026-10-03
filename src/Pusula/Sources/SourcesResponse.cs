@@ -7,6 +7,7 @@ namespace Pusula.Sources;
 /// <param name="CanEdit">Whether this request may add and remove sources (<c>POST /api/sources</c>, <c>DELETE /api/sources/{id}</c>): only one from the machine the server runs on may (unless <c>remoteEdit</c> is true), and only while the list comes from a sources file. <c>editBlocked</c> says why not.</param>
 /// <param name="Machine">The name of the machine the server runs on (the machine name of the operating system, such as the one a shell shows). A page says with it which browser can change the sources, when <c>remoteEdit</c> is false: the one on this machine.</param>
 /// <param name="RemoteEdit">The setting <c>Pusula:AllowRemoteEdit</c>: true when a request from another machine may add and remove sources too (the list must still come from a sources file, and the request from a page of this server); false when only one from <c>machine</c> may.</param>
+/// <param name="Version">The version of pusula this server is, such as <c>0.1.0</c>: the number only, without the commit of the build. <c>pusula --version</c> prints the same. A page shows it at the bottom of the sources page and in the tooltip of its name.</param>
 /// <param name="SourcesFile">Full path of the sources file the list was read from, or looked for and not found; left out when the folders were named on the command line or in <c>Pusula:Root</c>.</param>
 /// <param name="EditBlocked">Why <c>canEdit</c> is false: <c>Remote</c> (the request is not from the machine the server runs on, or a reverse proxy forwarded it; never while <c>remoteEdit</c> is true) or <c>CommandLine</c> (the folders were named on the command line or in <c>Pusula:Root</c>); left out when <c>canEdit</c> is true.</param>
 /// <param name="SourcesFileError">Why the sources file cannot be used, when it was changed after the server started into something that is not a valid list; the last valid list is still shown. Left out when the file is fine.</param>
@@ -15,6 +16,7 @@ public sealed record SourcesResponse(
     bool CanEdit,
     string Machine,
     bool RemoteEdit,
+    string Version,
     string? SourcesFile = null,
     string? EditBlocked = null,
     string? SourcesFileError = null);

@@ -16,6 +16,20 @@ namespace Pusula.Sources;
 /// <see cref="ReconcileAsync"/>). A file that was changed into something that cannot be read leaves the last valid
 /// list in place and says why in <see cref="SourcesFileError"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The registry goes through three steps: it runs; <see cref="StopAsync"/> stops it (a reload is refused from then on,
+/// the file watcher and every host stop); <see cref="Dispose"/> takes it down (the file watcher and every host are
+/// disposed). The host does the second and the container the third, and the two overlap when the application is disposed
+/// on a thread of its own while it is being stopped, so either may come first, any number of times, at the same time.
+/// </para>
+/// <para>
+/// A change of the list and a stop never overlap (the gate). <see cref="Dispose"/> closes the gate (see
+/// <see cref="ClosableGate"/>): no change gets in after that, and the file watcher, the hosts and the gate itself are
+/// disposed after the last change or stop that was under way, so none of them is disposed while it is in use. An edit
+/// that comes after that is refused with an <see cref="ObjectDisposedException"/>.
+/// </para>
+/// </remarks>
 internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, IHostedService, IDisposable
 {
     private readonly IndexBuilder _builder;
@@ -25,7 +39,8 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
     private readonly ILogger<SourceRegistry> _logger;
 
     // One change of the list at a time: reading the sources file, changing it and bringing the sources in line with it.
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    // Closed by Dispose. _hosts and _watcher are used with the gate or, after it was closed, when nobody is in it.
+    private readonly ClosableGate _gate = new();
     private readonly List<IndexHost> _hosts = [];
 
     private SourceList? _list;
@@ -33,7 +48,6 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
     private string? _fileError;
     private SourcesFileWatcher? _watcher;
     private int _stopped;
-    private int _disposed;
 
     /// <summary>Creates the registry; nothing is read until <see cref="Load"/> or <see cref="StartAsync"/>.</summary>
     public SourceRegistry(
@@ -49,6 +63,9 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
         _loggerFactory = loggerFactory;
         _logger = logger;
     }
+
+    /// <summary>How long <see cref="Dispose"/> waits for a change of the list that is under way. The registry is taken down when the change is done all the same, when this is too short.</summary>
+    internal TimeSpan DisposeTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <inheritdoc />
     public string? SourcesFile => Volatile.Read(ref _list)?.SourcesFile;
@@ -97,6 +114,7 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
     /// </summary>
     /// <param name="cancellationToken">Cancels the wait for another change of the list; the scan of a folder cannot be interrupted.</param>
     /// <exception cref="InvalidOperationException">The sources file cannot be used (and <see cref="Load"/> was not called before to say so).</exception>
+    /// <exception cref="ObjectDisposedException">The registry was disposed.</exception>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         string? error = Load();
@@ -105,7 +123,7 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
             throw new InvalidOperationException(error);
         }
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnterAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await ReconcileAsync(_list!, cancellationToken).ConfigureAwait(false);
@@ -113,21 +131,20 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
         }
         finally
         {
-            _gate.Release();
+            _gate.Exit();
         }
     }
 
-    /// <summary>Stops watching the sources file and every folder, and ends every event stream.</summary>
+    /// <summary>
+    /// Stops watching the sources file and every folder, and ends every event stream, once the change of the list that
+    /// is under way, if there is one, is done. Does nothing for a registry that was disposed.
+    /// </summary>
     /// <param name="cancellationToken">Cancels the wait for a change of the list that is under way.</param>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         Volatile.Write(ref _stopped, 1);
 
-        try
-        {
-            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (ObjectDisposedException)
+        if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
         {
             // Disposed already (an application whose start failed is disposed, and may be stopped after that): nothing is left to stop.
             return;
@@ -143,31 +160,41 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
         }
         finally
         {
-            _gate.Release();
+            _gate.Exit();
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Stops the registry, as <see cref="StopAsync"/> does, and disposes the file watcher and the hosts: after the change
+    /// of the list or the stop that is under way, if there is one, and waiting for it for <see cref="DisposeTimeout"/> at
+    /// most. Can be called any number of times.
+    /// </summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        if (!_gate.Close(DisposeCore, DisposeTimeout))
         {
-            return;
+            LogDisposeWaiting(DisposeTimeout.TotalSeconds);
         }
+    }
 
+    // Runs when nobody is in the gate, and nobody can come in. Disposing a host stops it.
+    private void DisposeCore()
+    {
+        Volatile.Write(ref _stopped, 1);
         _watcher?.Dispose();
         foreach (IndexHost host in _hosts)
         {
             host.Dispose();
         }
 
-        _gate.Dispose();
+        _hosts.Clear();
     }
 
     /// <inheritdoc />
+    /// <exception cref="ObjectDisposedException">The registry was disposed.</exception>
     public async Task<SourceEditResult> AddAsync(NewSource source, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnterAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_list?.SourcesFile is not { } file)
@@ -209,14 +236,15 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
         }
         finally
         {
-            _gate.Release();
+            _gate.Exit();
         }
     }
 
     /// <inheritdoc />
+    /// <exception cref="ObjectDisposedException">The registry was disposed.</exception>
     public async Task<SourceEditResult> RemoveAsync(string id, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnterAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_list?.SourcesFile is not { } file)
@@ -251,18 +279,23 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
         }
         finally
         {
-            _gate.Release();
+            _gate.Exit();
         }
     }
 
     /// <summary>
     /// Reads the sources file again and brings the sources in line with it: the work of the file watcher after a
     /// change. A file that was deleted leaves the list as it is. A file that cannot be read does too, and
-    /// <see cref="SourcesFileError"/> says why until it can be read again.
+    /// <see cref="SourcesFileError"/> says why until it can be read again. A registry that was stopped or disposed
+    /// does nothing.
     /// </summary>
     internal async Task ReloadAsync()
     {
-        await _gate.WaitAsync().ConfigureAwait(false);
+        if (!await _gate.TryEnterAsync().ConfigureAwait(false))
+        {
+            return;
+        }
+
         try
         {
             if (Volatile.Read(ref _stopped) == 1 || _list?.SourcesFile is not { } file)
@@ -280,7 +313,7 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
         }
         finally
         {
-            _gate.Release();
+            _gate.Exit();
         }
     }
 
@@ -291,10 +324,6 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
         {
             await ReloadAsync().ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is OperationCanceledException or ObjectDisposedException && Volatile.Read(ref _disposed) == 1)
-        {
-            // The application is shutting down.
-        }
         catch (Exception exception)
         {
             // The sources stay as they are; the next change of the file tries again. Nothing may escape a timer callback.
@@ -303,6 +332,15 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
     }
 
     private void OnFileChanged() => _ = ReloadSafelyAsync();
+
+    // Takes the gate for a change that cannot be left undone: there is nothing to answer a registry that was disposed with.
+    private async Task EnterAsync(CancellationToken cancellationToken)
+    {
+        if (!await _gate.TryEnterAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new ObjectDisposedException(nameof(SourceRegistry), "The registry was disposed: the sources are not shown any more.");
+        }
+    }
 
     // The gate is held. Starts watching the folder of the sources file: now, or after the first write when the folder
     // is created by it. Does nothing when the list does not come from a sources file.
@@ -527,6 +565,9 @@ internal sealed partial class SourceRegistry : ISourceRegistry, ISourceEditor, I
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Reading the sources file {File} again failed, the sources stay as they are")]
     private partial void LogReloadFailed(Exception exception, string file);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A change of the list of sources is still under way after {Seconds} seconds; the registry is taken down when it is done")]
+    private partial void LogDisposeWaiting(double seconds);
 
     // The sources file as it is now: its text, and the sources that the reader made of it in the same order. The text
     // is null when there is no file, and the sources are those that are shown.

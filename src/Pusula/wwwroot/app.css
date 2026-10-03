@@ -3254,6 +3254,17 @@ a.source-body:focus-visible::after {
   white-space: pre;
 }
 
+/* The last line of the sources page: which pusula this is, and the link to its release notes. As quiet as the help above it. */
+.version-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin: 24px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 /* After an error that names a source: the way out, beside the retry button. */
 .error-link {
   margin-left: 6px;
@@ -4148,6 +4159,7 @@ a.source-body:focus-visible::after {
   .tag-chips .tag-chip,
   .tagged-close,
   .error-link,
+  .release-link,
   a.embed-card {
     min-height: var(--touch);
   }
@@ -4206,7 +4218,8 @@ a.source-body:focus-visible::after {
   .budget-note a,
   .memory-link,
   .tagged-close,
-  .error-link {
+  .error-link,
+  .release-link {
     display: inline-flex;
     align-items: center;
   }

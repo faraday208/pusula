@@ -1028,4 +1028,125 @@ public sealed class SourceRegistryTests
 
         harness.Ids.ShouldBe(["a"]);
     }
+
+    // ---- Closing, in whatever order -----------------------------------------------------------------------------
+
+    private const int Rounds = 100;
+
+    // The host stops the registry and disposes it, and it can do both at once (the application is disposed on a thread of
+    // its own while a test or a signal stops it); the container disposes it once for every way it was registered.
+    [Fact]
+    public async Task StopAsyncAndDispose_AtTheSameTimeAndManyTimes_NeverThrowAndLeaveNothingRunning()
+    {
+        int watchers = OpenWatchers.Count();
+
+        for (int round = 0; round < Rounds; round++)
+        {
+            await using var harness = new RegistryHarness();
+            harness.WriteSourcesFile(
+                $$"""{ "sources": [ { "path": {{Json(harness.Folder("a", "A.md"))}} }, { "path": {{Json(harness.Folder("b", "B.md"))}} }, { "path": {{Json(harness.Folder("c", "C.md"))}} } ] }""");
+            await harness.StartAsync();
+            SourceRegistry registry = harness.Registry;
+            Task[] ended = [.. registry.Sources.Select(source => RegistryHarness.StreamEndsAsync(source))];
+
+            await Race.RunAsync(
+                () => registry.StopAsync(TestContext.Current.CancellationToken),
+                () => Dispose(registry),
+                () => registry.StopAsync(TestContext.Current.CancellationToken),
+                () => Dispose(registry),
+                registry.ReloadSafelyAsync);
+
+            await Task.WhenAll(ended).WaitAsync(RegistryHarness.Timeout, TestContext.Current.CancellationToken);
+            harness.Log.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+        }
+
+        await OpenWatchers.WaitUntilNoMoreThanAsync(watchers);
+
+        static Task Dispose(SourceRegistry registry)
+        {
+            registry.Dispose();
+            return Task.CompletedTask;
+        }
+    }
+
+    // A change of the list that adds b is held in the middle: the registry has the gate, and has not made the host of b yet.
+    [Fact]
+    public async Task StopAsyncAndDispose_WhileAChangeOfTheListIsUnderWay_WaitForItAndThenTakeEverythingDown()
+    {
+        int watchers = OpenWatchers.Count();
+        var latch = new Latch();
+        await using var harness = new RegistryHarness { LoggerFactory = new BlockingLoggerFactory(latch) };
+        string a = harness.Folder("a", "A.md");
+        string b = harness.Folder("b", "B.md");
+        harness.WriteSourcesFile($$"""{ "sources": [ { "id": "a", "path": {{Json(a)}} } ] }""");
+        await harness.StartAsync();
+        SourceRegistry registry = harness.Registry;
+        harness.WriteSourcesFile($$"""{ "sources": [ { "id": "a", "path": {{Json(a)}} }, { "id": "b", "path": {{Json(b)}} } ] }""");
+        latch.Arm();
+        Task reload = Task.Run(() => registry.ReloadAsync(), TestContext.Current.CancellationToken);
+        await latch.ParkedAsync();
+
+        Task stopping = registry.StopAsync(TestContext.Current.CancellationToken);
+        Task disposing = Task.Factory.StartNew(registry.Dispose, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await Task.Delay(TimeSpan.FromMilliseconds(300), TestContext.Current.CancellationToken);
+
+        stopping.IsCompleted.ShouldBeFalse();
+        disposing.IsCompleted.ShouldBeFalse();
+
+        latch.Release();
+        await Task.WhenAll(reload, stopping, disposing).WaitAsync(RegistryHarness.Timeout, TestContext.Current.CancellationToken);
+
+        // The change was finished: b is listed, and its host went down with the others.
+        SourceEntry added = Entry(harness, "b");
+        added.IsAvailable.ShouldBeTrue();
+        await RegistryHarness.StreamEndsAsync(added).WaitAsync(RegistryHarness.Timeout, TestContext.Current.CancellationToken);
+        await OpenWatchers.WaitUntilNoMoreThanAsync(watchers);
+        harness.Log.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+    }
+
+    // A change of the list that is not done by the time Dispose has waited as long as it is told to does not hold it up:
+    // the change is the last one in the gate, and takes the registry down when it leaves.
+    [Fact]
+    public async Task Dispose_WhileAChangeOfTheListTakesLongerThanTheTimeout_ReturnsAndTheChangeTakesEverythingDownWhenItIsDone()
+    {
+        int watchers = OpenWatchers.Count();
+        var latch = new Latch();
+        await using var harness = new RegistryHarness { LoggerFactory = new BlockingLoggerFactory(latch), DisposeTimeout = TimeSpan.FromMilliseconds(200) };
+        string a = harness.Folder("a", "A.md");
+        string b = harness.Folder("b", "B.md");
+        harness.WriteSourcesFile($$"""{ "sources": [ { "id": "a", "path": {{Json(a)}} } ] }""");
+        await harness.StartAsync();
+        SourceRegistry registry = harness.Registry;
+        Task aEnded = RegistryHarness.StreamEndsAsync(Entry(harness, "a"));
+        harness.WriteSourcesFile($$"""{ "sources": [ { "id": "a", "path": {{Json(a)}} }, { "id": "b", "path": {{Json(b)}} } ] }""");
+        latch.Arm();
+        Task reload = Task.Run(() => registry.ReloadAsync(), TestContext.Current.CancellationToken);
+        await latch.ParkedAsync();
+
+        registry.Dispose();
+
+        reload.IsCompleted.ShouldBeFalse();
+        aEnded.IsCompleted.ShouldBeFalse();
+        Warnings(harness, "still under way").ShouldBe(1);
+
+        latch.Release();
+        await reload.WaitAsync(RegistryHarness.Timeout, TestContext.Current.CancellationToken);
+        await aEnded.WaitAsync(RegistryHarness.Timeout, TestContext.Current.CancellationToken);
+        await RegistryHarness.StreamEndsAsync(Entry(harness, "b")).WaitAsync(RegistryHarness.Timeout, TestContext.Current.CancellationToken);
+        await OpenWatchers.WaitUntilNoMoreThanAsync(watchers);
+    }
+
+    [Fact]
+    public async Task EditingAndStarting_AfterTheRegistryWasDisposed_ThrowObjectDisposed()
+    {
+        await using var harness = new RegistryHarness();
+        await harness.StartAsync();
+        string notes = harness.Folder("notes", "N.md");
+        harness.DisposeRegistry();
+
+        await Should.ThrowAsync<ObjectDisposedException>(() => harness.AddAsync(notes));
+        await Should.ThrowAsync<ObjectDisposedException>(() => harness.RemoveAsync("claude"));
+        await Should.ThrowAsync<ObjectDisposedException>(() => harness.Registry.StartAsync(TestContext.Current.CancellationToken));
+        File.Exists(harness.SourcesFile).ShouldBeFalse();
+    }
 }

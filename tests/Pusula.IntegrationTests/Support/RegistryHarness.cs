@@ -50,6 +50,9 @@ internal sealed class RegistryHarness : IAsyncDisposable
     /// <summary>The expressions that the links of every note are found with; null (the default) for the application's own. A set with an expression that does not work makes the scan of any folder with a note in it fail.</summary>
     internal LinkExtractor.PatternSet? LinkPatterns { get; set; }
 
+    /// <summary>How long disposing the registry waits for a change of the list that is under way; the most a test needs by default, a short time to see what is done when the change is not finished by then.</summary>
+    public TimeSpan DisposeTimeout { get; set; } = Timeout;
+
     /// <summary>The factory that makes the loggers of the sources the registry starts (and of its file watcher); one that logs nothing by default.</summary>
     public ILoggerFactory LoggerFactory { get; set; } = NullLoggerFactory.Instance;
 
@@ -115,7 +118,10 @@ internal sealed class RegistryHarness : IAsyncDisposable
             Options.Create(options),
             Directories,
             LoggerFactory,
-            Log);
+            Log)
+        {
+            DisposeTimeout = DisposeTimeout,
+        };
 
         string? error = registry.Load();
         if (error is not null)
@@ -178,9 +184,13 @@ internal sealed class RegistryHarness : IAsyncDisposable
     /// Follows the changes of a source in the background: the task ends when the stream of changes ends (the source
     /// stopped). The subscription is in place when this returns.
     /// </summary>
-    public static Task StreamEndsAsync(SourceEntry entry)
+    public static Task StreamEndsAsync(SourceEntry entry) => StreamEndsAsync(entry.Index!);
+
+    /// <inheritdoc cref="StreamEndsAsync(SourceEntry)"/>
+    /// <param name="provider">The index to follow.</param>
+    public static Task StreamEndsAsync(IIndexProvider provider)
     {
-        IAsyncEnumerator<IndexChange> changes = entry.Index!.WatchAsync(CancellationToken.None).GetAsyncEnumerator(CancellationToken.None);
+        IAsyncEnumerator<IndexChange> changes = provider.WatchAsync(CancellationToken.None).GetAsyncEnumerator(CancellationToken.None);
         ValueTask<bool> first = changes.MoveNextAsync();
         return Drain(changes, first);
 

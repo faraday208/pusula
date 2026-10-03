@@ -123,7 +123,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         JsonElement paths = json.RootElement.GetProperty("paths");
 
         string list = paths.GetProperty("/api/sources").GetProperty("get").GetProperty("description").GetString()!;
-        foreach (string text in new[] { "'machine'", "'remoteEdit'", "Pusula:AllowRemoteEdit", "'errorCode'", "FolderMissing", "NotReadable", "TooLarge", "'code'" })
+        foreach (string text in new[] { "'machine'", "'version'", "pusula --version", "'remoteEdit'", "Pusula:AllowRemoteEdit", "'errorCode'", "FolderMissing", "NotReadable", "TooLarge", "'code'" })
         {
             list.ShouldContain(text);
         }
@@ -232,13 +232,13 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
             property.Value.GetProperty("description").GetString().ShouldNotBeNullOrWhiteSpace(property.Name);
         }
 
-        list.GetProperty("properties").PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "sourcesFile", "editBlocked", "sourcesFileError"], ignoreOrder: true);
+        list.GetProperty("properties").PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "version", "sourcesFile", "editBlocked", "sourcesFileError"], ignoreOrder: true);
         foreach (JsonProperty property in list.GetProperty("properties").EnumerateObject())
         {
             property.Value.GetProperty("description").GetString().ShouldNotBeNullOrWhiteSpace(property.Name);
         }
 
-        list.GetProperty("required").EnumerateArray().Select(name => name.GetString()).ShouldBe(["sources", "canEdit", "machine", "remoteEdit"], ignoreOrder: true);
+        list.GetProperty("required").EnumerateArray().Select(name => name.GetString()).ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "version"], ignoreOrder: true);
         list.GetProperty("properties").GetProperty("canEdit").GetProperty("type").GetString().ShouldBe("boolean");
         list.GetProperty("properties").GetProperty("editBlocked").GetProperty("description").GetString()!.ShouldContain("Remote");
         list.GetProperty("properties").GetProperty("editBlocked").GetProperty("description").GetString()!.ShouldContain("CommandLine");

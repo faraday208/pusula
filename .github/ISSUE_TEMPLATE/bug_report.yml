@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in pusula does not work as it should
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report this.
+
+        **Please do not paste real private content.** pusula reads configuration and notes, which can hold names, paths, host names, IP addresses or tokens. Reproduce the problem on the synthetic demo in `samples/` or on a small made-up folder, and remove such details from logs and screenshots before you add them.
+
+        **A security problem does not belong here.** Report it privately, as described in the [security policy](https://github.com/faraday208/pusula/security/policy).
+  - type: input
+    id: version
+    attributes:
+      label: pusula version
+      description: Shown at the bottom of the Sources page, or printed by `dotnet run --project src/Pusula -- --version`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: And the browser, if the problem is on the page.
+      placeholder: "Ubuntu 24.04, Firefox"
+    validations:
+      required: true
+  - type: textarea
+    id: start
+    attributes:
+      label: How did you start pusula?
+      description: The command you ran (the paths can be made up) and the output of `dotnet --version`. Say if you open the page on another device than the one pusula runs on.
+      placeholder: dotnet run --project src/Pusula -- "$PWD/samples/claude"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: What the page showed, any error message, and what pusula printed in the terminal.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: A problem that also happens on the demo in `samples/` is the easiest to fix.
+      placeholder: |
+        1. Start pusula with ...
+        2. Open ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Screenshots, the browser console (F12), what you already tried. Hide real names, paths and IP addresses first.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send
+      options:
+        - label: I searched the existing issues and did not find this one.
+          required: true
+        - label: This report holds no real private content (my configuration, notes, names, paths, host names, IP addresses) and no details of a security problem.
+          required: true

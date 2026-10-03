@@ -2,6 +2,8 @@
 
 # pusula
 
+[![CI](https://github.com/faraday208/pusula/actions/workflows/ci.yml/badge.svg)](https://github.com/faraday208/pusula/actions/workflows/ci.yml)
+
 **Read your AI agent configuration and your Markdown vaults in the browser.** pusula is a small local server that
 shows a folder such as `~/.claude`, an Obsidian vault or any folder of Markdown files as a readable, linked site:
 which file links to which, what is broken, and — for Claude Code — what every session loads and what it costs.
@@ -91,6 +93,18 @@ browse your folders, whatever the setting, and the server answers only to IP add
 - Images, Mermaid diagrams, Obsidian Bases, canvases and footnotes are not drawn yet; raw HTML is shown as text.
 - Run it with `dotnet run`; a published binary started from another folder does not find its web files yet.
 
+## Updating
+
+pusula uses [semantic versioning](https://semver.org). Every release gets a tag (`v0.1.0`), an entry in
+[CHANGELOG.md](CHANGELOG.md) and a page under [Releases](https://github.com/faraday208/pusula/releases).
+
+- **To hear about new releases:** on GitHub choose **Watch → Custom → Releases**.
+- **To update:** `git pull`, then start pusula again.
+- **Which version am I running?** It is shown at the bottom of the Sources page, and
+  `dotnet run --project src/Pusula -- --version` prints it.
+
+pusula never checks for updates by itself: it makes no network requests.
+
 ## Development
 
 ```bash
@@ -102,6 +116,16 @@ node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test "tests/web/*.test.mjs
 - `src/Pusula`: one ASP.NET Core project (minimal APIs) — the server indexes the folders and answers JSON; the UI in
   `src/Pusula/wwwroot` is plain HTML, CSS and JavaScript with no build step. API description: `/openapi/v1.json`.
 - Tests use synthetic data only. `CLAUDE.md` holds the rules for contributors and their AI agents.
+
+## Contributing
+
+pusula is a small, selective project: every feature rests on a real use. Bug reports, fixes and ideas are welcome.
+Send a small fix straight away; for anything bigger, please open an issue first, so we can agree on it before you
+spend time on it.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to build, test and send a change
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): how we treat each other
+- [SECURITY.md](SECURITY.md): how to report a vulnerability privately, not in an issue
 
 ## License
 

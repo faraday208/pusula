@@ -2,6 +2,7 @@
 # Start the server first:
 #   dotnet run --project src/Pusula -- <folder> [<folder> ...]        the folders to show (a Claude Code folder, a vault, ...)
 #   dotnet run --project src/Pusula                                    the sources file, else ~/.claude
+#   dotnet run --project src/Pusula -- --version                       prints "pusula <version>" and exits (no folder is looked at, no server is started)
 # The port is the one in appsettings.json and Properties/launchSettings.json.
 #
 # What is shown, in this order:
@@ -55,6 +56,7 @@
 # or TooLarge (more than 20,000 Markdown files, 50,000 folders or 256 MiB of Markdown). The endpoints of such a source answer 503
 # with the same value as the "code" of the problem details.
 # "machine" is the name of the machine the server runs on. "remoteEdit" is the setting Pusula:AllowRemoteEdit.
+# "version" is the version of pusula this server is, such as 0.1.0: the number only, without the commit of the build ("pusula --version" prints the same).
 # "canEdit" says whether this request may add and remove sources: only one from the machine the server runs on may (unless
 # "remoteEdit" is true: then one from another machine may too), and only while the list comes from a sources file. "editBlocked"
 # says why not: Remote (the request is from another machine, or a reverse proxy forwarded it: it has a Forwarded, X-Forwarded-For,

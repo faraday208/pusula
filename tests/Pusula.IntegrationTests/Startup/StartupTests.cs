@@ -1,5 +1,6 @@
 using Pusula.Indexing;
 using Pusula.IntegrationTests.Support;
+using Pusula.Startup;
 using Shouldly;
 using Xunit;
 
@@ -81,6 +82,37 @@ public sealed class StartupTests
 
         exitCode.ShouldBe(1);
         capturedError.ToString().ShouldBe($"pusula: root folder not found: {missing}{Environment.NewLine}");
+    }
+
+    // The same entry point, asked for the version. It is answered before anything else: the folder that is named first does not
+    // exist, and it is not looked at; no host is built (a running host would never return). One line on the standard output, exit
+    // code 0, nothing on the error stream.
+    [Fact]
+    public void Main_VersionOption_WritesTheVersionAndReturnsExitCode0WithoutLookingAtTheFolders()
+    {
+        using var temp = new TempDirectory();
+        string missing = temp.Resolve("does-not-exist");
+        TextWriter originalOut = Console.Out;
+        TextWriter originalError = Console.Error;
+        using var capturedOut = new StringWriter();
+        using var capturedError = new StringWriter();
+        object? exitCode;
+
+        Console.SetOut(capturedOut);
+        Console.SetError(capturedError);
+        try
+        {
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { missing, "--version" }]);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+        }
+
+        exitCode.ShouldBe(0);
+        capturedOut.ToString().ShouldBe($"{AppVersion.Line}{Environment.NewLine}");
+        capturedError.ToString().ShouldBeEmpty();
     }
 
     // The same entry point, with a sources file that cannot be used: the settings are read once the host is built, and

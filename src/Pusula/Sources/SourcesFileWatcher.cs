@@ -6,7 +6,9 @@ namespace Pusula.Sources;
 /// Watches one sources file: when it is written, replaced, created or deleted, the <c>changed</c> callback is called
 /// once the folder has been quiet for <see cref="Delay"/>. The folder is watched and not the file itself, so that an
 /// editor that saves by replacing the file is seen, and so is a file that does not exist yet. A folder that does not
-/// exist cannot be watched; <see cref="TryStart"/> tries again.
+/// exist cannot be watched; <see cref="TryStart"/> tries again. <see cref="TryStart"/> and <see cref="Dispose"/> can be
+/// called at the same time and any number of times: a start that comes after the dispose, or that the dispose did not
+/// wait for, does not leave a watcher running.
 /// </summary>
 internal sealed partial class SourcesFileWatcher : IDisposable
 {
@@ -20,9 +22,12 @@ internal sealed partial class SourcesFileWatcher : IDisposable
     private readonly ILogger<SourcesFileWatcher> _logger;
     private readonly ITimer _timer;
 
+    // Makes starting and ending the watcher one thing at a time.
+    private readonly Lock _sync = new();
+
     private FileSystemWatcher? _watcher;
     private bool _needsRestart;
-    private int _disposed;
+    private bool _disposed;
 
     /// <summary>Creates the watcher; nothing is watched until <see cref="TryStart"/>.</summary>
     /// <param name="file">Full path of the sources file.</param>
@@ -45,11 +50,15 @@ internal sealed partial class SourcesFileWatcher : IDisposable
     /// <returns>True when the folder is watched; false when it does not exist yet or cannot be watched.</returns>
     public bool TryStart()
     {
-        if (Volatile.Read(ref _disposed) == 1)
+        lock (_sync)
         {
-            return false;
+            return !_disposed && StartWatcher();
         }
+    }
 
+    // Called with _sync.
+    private bool StartWatcher()
+    {
         if (_watcher is not null && !Volatile.Read(ref _needsRestart))
         {
             return true;
@@ -97,13 +106,18 @@ internal sealed partial class SourcesFileWatcher : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        lock (_sync)
         {
-            return;
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        _timer.Dispose();
-        _watcher?.Dispose();
+            _disposed = true;
+            _timer.Dispose();
+            _watcher?.Dispose();
+            _watcher = null;
+        }
     }
 
     private void OnChanged(object sender, FileSystemEventArgs e)
@@ -138,7 +152,7 @@ internal sealed partial class SourcesFileWatcher : IDisposable
 
     private void OnTimerElapsed()
     {
-        if (Volatile.Read(ref _disposed) == 0)
+        if (!Volatile.Read(ref _disposed))
         {
             _changed();
         }

@@ -208,6 +208,40 @@ public sealed class SourcesFileWatcherTests : IDisposable
         watcher.TryStart().ShouldBeFalse();
     }
 
+    // The registry starts the watcher again after a change of the list and takes it down when it stops; both can come at once.
+    [Fact]
+    public async Task TryStartAndDispose_AtTheSameTimeAndManyTimes_NeverThrowAndLeaveNoWatcherBehind()
+    {
+        int open = OpenWatchers.Count();
+
+        for (int round = 0; round < 100; round++)
+        {
+            SourcesFileWatcher watcher = Create(_temp.Write($"round{round}/sources.json", "{}"));
+
+            await Race.RunAsync(
+                () => Start(watcher),
+                () => Dispose(watcher),
+                () => Start(watcher),
+                () => Dispose(watcher));
+
+            watcher.TryStart().ShouldBeFalse();
+        }
+
+        await OpenWatchers.WaitUntilNoMoreThanAsync(open);
+
+        static Task Start(SourcesFileWatcher watcher)
+        {
+            watcher.TryStart();
+            return Task.CompletedTask;
+        }
+
+        static Task Dispose(SourcesFileWatcher watcher)
+        {
+            watcher.Dispose();
+            return Task.CompletedTask;
+        }
+    }
+
     [Fact]
     public void Create_FileThatIsNotInAFolder_Throws() =>
         Should.Throw<ArgumentException>(() => new SourcesFileWatcher(Path.GetPathRoot(Path.GetTempPath())!, () => { }, new CapturingLogger<SourcesFileWatcher>()));

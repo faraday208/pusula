@@ -8,6 +8,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { RELEASES_URL } from '../../src/Pusula/wwwroot/js/core.js';
+
 const wwwroot = fileURLToPath(new URL('../../src/Pusula/wwwroot/', import.meta.url));
 const read = (path) => readFileSync(`${wwwroot}${path}`, 'utf8');
 
@@ -46,11 +48,15 @@ describe('index.html under the CSP', () => {
 });
 
 describe('same-origin only', () => {
+  // The one address outside the server that the page names: where the release notes are. It is the target of a link that the reader
+  // follows, never a request (see "the version of pusula" at the end of this file); nothing else may name a remote address.
+  const RELEASES_DECLARATION = `export const RELEASES_URL = '${RELEASES_URL}';`;
+
   it('css and scripts name no remote address and import no remote module', () => {
     assert.ok(!/https?:\/\//i.test(css), 'app.css');
     assert.ok(!/@import/i.test(css));
     for (const [name, source] of Object.entries(scripts)) {
-      assert.ok(!/https?:\/\//i.test(source), name);
+      assert.ok(!/https?:\/\//i.test(source.replace(RELEASES_DECLARATION, '')), name);
       assert.ok(!/import\s*\(/.test(source), `${name} uses dynamic import`);
     }
   });
@@ -3119,6 +3125,74 @@ describe('colour of the folder picker (WCAG contrast of the real tokens)', () =>
       assert.ok(contrast(color('--text'), row) >= 4.5, `--text on the selected row: ${contrast(color('--text'), row).toFixed(2)}`);
       assert.ok(contrast(color('--accent'), row) >= 3, `--accent on the selected row: ${contrast(color('--accent'), row).toFixed(2)}`);
       assert.ok(contrast(color('--accent'), bg) >= 3 && contrast(color('--accent'), side) >= 3);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// The version of pusula: the last line of the sources page, and the tooltip of the brand
+// ---------------------------------------------------------------------------------------------
+
+describe('the version of pusula and the link to its release notes', () => {
+  it('the version comes with the list of sources: loadSources reads it with appVersion, and a server that says none leaves it null', () => {
+    assert.match(wholeFunction('loadSources'), /state\.appVersion = appVersion\(data\);/);
+    assert.match(code('app.js'), /appVersion: null,/);
+  });
+
+  it('it is the last thing on the sources page, written from the state, and a page without a version has no such line', () => {
+    assert.match(wholeFunction('sourcesPage'), /page\.append\(sourceList\(\), addSourceForm\(\), sourcesHelp\(\)\);\s*const version = versionLine\(\);\s*if \(version !== null\) page\.append\(version\);\s*return page;/);
+    const line = wholeFunction('versionLine');
+    assert.match(line, /if \(state\.appVersion === null\) return null;/);
+    assert.match(line, /el\('p', 'version-line', t\('about\.version', \{ version: state\.appVersion \}\)\)/);
+    assert.match(line, /el\('a', 'release-link', t\('about\.releases'\)\)/);
+    assert.match(line, /separator\.setAttribute\('aria-hidden', 'true'\)/, 'the dot between the two is no word');
+    assert.match(line, /link\.dataset\.keep = 'releases'/, 'a redraw keeps the keyboard on the link');
+    assert.ok(!/innerHTML/.test(line));
+  });
+
+  it('the link opens the release notes in a new tab and tells the new page nothing about this one', () => {
+    assert.match(wholeFunction('versionLine'), /link\.href = RELEASES_URL;\s*link\.target = '_blank';\s*link\.rel = 'noopener noreferrer';/);
+  });
+
+  it('the address is named once, in core.js, and the page uses it only as the target of that link: it never asks it for anything', () => {
+    const named = Object.entries(scripts).flatMap(([name, source]) => [...source.matchAll(/https?:\/\/[^\s'"`]+/gi)].map((match) => `${name} ${match[0]}`));
+    assert.deepEqual(named, [`core.js ${RELEASES_URL}`]);
+    const app = code('app.js');
+    assert.equal([...app.matchAll(/\bRELEASES_URL\b/g)].length, 2, 'imported once, used once');
+    assert.ok(!/(?:getJson|fetch|EventSource|open)\([^)]*RELEASES_URL/.test(app), 'it is not requested');
+    assert.ok(!/location[^;\n]*RELEASES_URL/.test(app), 'the page does not navigate to it by itself');
+    assert.ok(!/<link[^>]*rel="(?:prefetch|preload|preconnect|dns-prefetch)"/i.test(html), 'nothing in index.html reaches out before a click');
+  });
+
+  it('the brand\'s tooltip is the version, written where its address is, and gone again for a server that says none', () => {
+    assert.match(functionSource('updateSourceSwitch'), /if \(state\.appVersion === null\) refs\.brand\.removeAttribute\('title'\);\s*else refs\.brand\.title = t\('about\.version', \{ version: state\.appVersion \}\);/);
+    assert.ok(!/<a class="brand"[^>]*\stitle=/.test(html), 'index.html has no version of its own');
+    assert.match(functionSource('applyStaticI18n'), /updateSourceSwitch\(\)/, 'the other language is written at once');
+  });
+
+  it('the new pieces exist on both sides', () => {
+    for (const name of ['version-line', 'release-link']) {
+      assert.match(code('app.js'), new RegExp(`['\`" ]${name}['\`" ]`), `${name} is not used in app.js`);
+      assert.match(css, new RegExp(`\\.${name}\\b`), `${name} has no rule in app.css`);
+    }
+  });
+
+  it('the line is quiet text (the quiet grey, small) in the page\'s own flow; under touch its link is 40px', () => {
+    const line = ownRule('.version-line') ?? '';
+    assert.match(line, /color: var\(--muted\)/);
+    assert.match(line, /font-size: 13px/);
+    assert.match(line, /flex-wrap: wrap/, 'on a narrow screen the link goes to the next line instead of running off');
+    const coarse = css.match(/@media \(pointer: coarse\)\s*\{([\s\S]*?)\n\}\n/)?.[1] ?? '';
+    const sized = coarse.match(/([^{}]*)\{\s*min-height: var\(--touch\);\s*\}/)?.[1] ?? '';
+    assert.ok(sized.includes('.release-link'), '.release-link is not made touch-sized');
+    assert.match(coarse, /\.error-link,\s*\.release-link\s*\{\s*display: inline-flex;\s*align-items: center;\s*\}/);
+  });
+
+  for (const [theme, tokens] of [['light', lightTokens], ['dark', darkTokens]]) {
+    it(`${theme}: the line is the quiet grey and its link the link colour on the page, 4.5:1 on it`, () => {
+      const color = (name) => parseColor(tokens[name]);
+      assert.ok(contrast(color('--muted'), color('--bg')) >= 4.5, 'the line');
+      assert.ok(contrast(color('--accent-text'), color('--bg')) >= 4.5, 'the link');
     });
   }
 });

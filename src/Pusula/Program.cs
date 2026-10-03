@@ -13,6 +13,13 @@ using Pusula.Tree;
 // host's command-line provider would read an absolute path (which starts with '/') as an option.
 CommandLine commandLine = CommandLine.Parse(args);
 
+// `pusula --version` is answered first: one line and exit code 0, with no folder looked at and no host built.
+if (commandLine.WantsVersion)
+{
+    Console.WriteLine(AppVersion.Line);
+    return 0;
+}
+
 // A folder typed on the command line that does not exist is a usage error: one line and exit code 1, no stack trace.
 string? rootError = commandLine.FindRootError(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Directory.Exists);
 if (rootError is not null)

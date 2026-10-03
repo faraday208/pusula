@@ -96,6 +96,9 @@ export const DICT = {
     'sources.error.FileInvalid': 'Kaynak dosyası okunamıyor; önce dosyayı düzeltin: {file}',
     'sources.error.WriteFailed': 'Kaynak dosyası yazılamadı: {detail}',
 
+    'about.version': 'pusula v{version}',
+    'about.releases': 'Sürüm notları',
+
     'browse.title': 'Klasör seç',
     'browse.close': 'Kapat',
     'browse.found': 'Bulunan klasörler',
@@ -425,6 +428,9 @@ export const DICT = {
     'sources.error.InvalidName': 'The name can be 80 characters at most.',
     'sources.error.FileInvalid': 'The sources file cannot be read; fix the file first: {file}',
     'sources.error.WriteFailed': 'The sources file could not be written: {detail}',
+
+    'about.version': 'pusula v{version}',
+    'about.releases': 'Release notes',
 
     'browse.title': 'Choose a folder',
     'browse.close': 'Close',

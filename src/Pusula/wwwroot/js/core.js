@@ -1484,6 +1484,22 @@ export function sourcesHost(data) {
   return { machine: machine === '' ? null : machine, remoteEdit: data?.remoteEdit === true };
 }
 
+/**
+ * The version of pusula that the server says it is, from the answer of `/api/sources`: the number as the server wrote it (`0.1.0`), without the
+ * spaces around it; null when the server says none (an older one does not) or says something that is not a version number. The page shows it
+ * and asks for nothing more.
+ */
+export function appVersion(data) {
+  const version = typeof data?.version === 'string' ? data.version.trim() : '';
+  return /^\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z.+-]+)?$/.test(version) ? version : null;
+}
+
+/**
+ * Where the release notes of pusula are. It is the one address outside the server that the page names, and only as the target of a link that
+ * the reader follows (in a new tab): the page itself asks no one but its own server for anything.
+ */
+export const RELEASES_URL = 'https://github.com/faraday208/pusula/releases';
+
 /** What a server is started with to let other machines add and remove sources: the page names it where it says how else the list can be changed. */
 export const REMOTE_EDIT_FLAG = '--Pusula:AllowRemoteEdit true';
 

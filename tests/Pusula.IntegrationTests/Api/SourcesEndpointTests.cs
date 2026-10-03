@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Pusula.IntegrationTests.Support;
+using Pusula.Startup;
 using Shouldly;
 using Xunit;
 
@@ -33,7 +34,7 @@ public sealed class SourcesEndpointTests(SourcesFixture fixture) : IClassFixture
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("application/json");
-        root.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "sourcesFile", "editBlocked"], ignoreOrder: true);
+        root.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "version", "sourcesFile", "editBlocked"], ignoreOrder: true);
         root.GetProperty("sourcesFile").GetString().ShouldBe(fixture.SourcesFile);
         root.GetProperty("machine").GetString().ShouldBe(Environment.MachineName);
         root.GetProperty("remoteEdit").GetBoolean().ShouldBeFalse();
@@ -65,6 +66,19 @@ public sealed class SourcesEndpointTests(SourcesFixture fixture) : IClassFixture
         sources[2].GetProperty("profile").GetString().ShouldBe("Markdown");
     }
 
+    // The version is the number of the release, not of the build: the commit that the SDK adds after a "+" is left off.
+    [Fact]
+    public async Task GetSources_Version_IsTheNumberOfTheReleaseWithoutTheCommitOfTheBuild()
+    {
+        using JsonDocument json = await fixture.Client.GetJsonAsync("/api/sources");
+
+        string version = json.RootElement.GetProperty("version").GetString().ShouldNotBeNull();
+
+        version.ShouldBe(AppVersion.Current);
+        version.ShouldMatch(@"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$");
+        version.ShouldNotContain('+');
+    }
+
     [Fact]
     public async Task GetSources_FolderFromPusulaRoot_IsOneSourceAndHasNoSourcesFile()
     {
@@ -74,7 +88,7 @@ public sealed class SourcesEndpointTests(SourcesFixture fixture) : IClassFixture
 
         using JsonDocument json = await client.GetJsonAsync("/api/sources");
 
-        json.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "editBlocked"], ignoreOrder: true);
+        json.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "version", "editBlocked"], ignoreOrder: true);
         json.RootElement.GetProperty("canEdit").GetBoolean().ShouldBeFalse();
         JsonElement source = json.RootElement.GetProperty("sources").EnumerateArray().Single();
         source.GetProperty("id").GetString().ShouldBe("root");

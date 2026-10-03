@@ -35,7 +35,8 @@ internal static class SourceEndpoints
                 + "code to act on: FolderMissing, NotReadable or TooLarge. The endpoints of such a source answer 503 with the "
                 + "same code as the 'code' of their problem details. 'sourcesFile' is the sources file the list was read from "
                 + "(or looked for, when there was none); it is left out when the folders were named on the command line. "
-                + "'machine' is the name of the machine the server runs on. 'canEdit' says "
+                + "'machine' is the name of the machine the server runs on. 'version' is the version of pusula this server is, such as "
+                + "0.1.0, without the commit of the build (pusula --version prints it too). 'canEdit' says "
                 + "whether this request may add and remove sources (POST /api/sources, DELETE /api/sources/{id}): only a "
                 + "request from the machine the server runs on may (one that a reverse proxy forwarded, with a Forwarded, "
                 + "X-Forwarded-For, X-Forwarded-Host or X-Real-IP header, does not count), unless the setting "
@@ -107,6 +108,7 @@ internal static class SourceEndpoints
             CanEdit: blocked is null,
             Environment.MachineName,
             remoteEdit,
+            AppVersion.Current,
             registry.SourcesFile,
             blocked?.ToString(),
             registry.SourcesFileError));

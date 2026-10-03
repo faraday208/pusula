@@ -2,6 +2,8 @@
 
 # pusula
 
+[![CI](https://github.com/faraday208/pusula/actions/workflows/ci.yml/badge.svg)](https://github.com/faraday208/pusula/actions/workflows/ci.yml)
+
 **AI ajan yapılandırmanı ve Markdown kasalarını tarayıcıda oku.** pusula küçük, yerel bir sunucu: `~/.claude` gibi
 bir klasörü, bir Obsidian kasasını ya da herhangi bir Markdown klasörünü okunur, bağlantılı bir site olarak gösterir.
 Hangi dosya hangisine bağlanıyor, ne kırık, ve Claude Code için her oturum ne yüklüyor, kaç token tutuyor.
@@ -91,6 +93,18 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
 - Görseller, Mermaid diyagramları, Obsidian Bases, canvas ve dipnotlar henüz çizilmiyor; ham HTML metin olarak görünür.
 - `dotnet run` ile çalıştır; başka klasörden başlatılan yayınlanmış ikili şimdilik web dosyalarını bulamıyor.
 
+## Güncelleme
+
+pusula [anlamsal sürümleme](https://semver.org) kullanır. Her sürüm bir etiket (`v0.1.0`), [CHANGELOG.md](CHANGELOG.md)'de
+bir kayıt ve [Releases](https://github.com/faraday208/pusula/releases) altında bir sayfa alır.
+
+- **Yeni sürümden haberdar olmak için:** GitHub'da **Watch → Custom → Releases** seç.
+- **Güncellemek için:** `git pull`, sonra pusula'yı yeniden başlat.
+- **Hangi sürümü çalıştırıyorum?** Kaynaklar sayfasının en altında yazar; `dotnet run --project src/Pusula -- --version`
+  da yazdırır.
+
+pusula güncellemeyi kendiliğinden denetlemez: ağa hiç istek atmaz.
+
 ## Geliştirme
 
 ```bash
@@ -102,6 +116,16 @@ node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test "tests/web/*.test.mjs
 - `src/Pusula`: tek ASP.NET Core projesi (minimal API): sunucu klasörleri indeksler ve JSON döner; `src/Pusula/wwwroot`
   altındaki arayüz düz HTML, CSS ve JavaScript, derleme adımı yok. API tanımı: `/openapi/v1.json`.
 - Testler yalnız sentetik veri kullanır. Katkıcılar ve onların yapay zekâ ajanları için kurallar `CLAUDE.md`'de.
+
+## Katkı
+
+pusula küçük ve seçici bir proje: her özellik gerçek bir kullanıma dayanır. Hata bildirimleri, düzeltmeler ve fikirler
+memnuniyetle karşılanır. Küçük bir düzeltmeyi doğrudan gönderebilirsin; daha büyük her şey için, emek harcamadan önce
+anlaşabilmek adına bir issue aç.
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): nasıl derlenir, test edilir ve değişiklik gönderilir (İngilizce)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): birbirimize nasıl davranırız (İngilizce)
+- [SECURITY.md](SECURITY.md): güvenlik açığı nasıl özel olarak bildirilir; issue'ya yazma (İngilizce)
 
 ## Lisans
 

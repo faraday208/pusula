@@ -51,7 +51,7 @@ public sealed class SourceEditingTests
         {
             using JsonDocument json = await app.GetSourcesAsync();
 
-            json.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "sourcesFile"], ignoreOrder: true);
+            json.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "version", "sourcesFile"], ignoreOrder: true);
             json.RootElement.GetProperty("canEdit").GetBoolean().ShouldBeTrue();
             json.RootElement.GetProperty("machine").GetString().ShouldBe(Environment.MachineName);
             json.RootElement.GetProperty("remoteEdit").GetBoolean().ShouldBeFalse();
@@ -128,7 +128,7 @@ public sealed class SourceEditingTests
         using JsonDocument local = await app.GetSourcesAsync();
         using JsonDocument remote = await app.GetSourcesAsync(EditingApp.From(EditingApp.AnotherMachine, EditingApp.ThisMachine));
 
-        local.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "editBlocked"], ignoreOrder: true);
+        local.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "version", "editBlocked"], ignoreOrder: true);
         local.RootElement.GetProperty("canEdit").GetBoolean().ShouldBeFalse();
         local.RootElement.GetProperty("editBlocked").GetString().ShouldBe("CommandLine");
         remote.RootElement.GetProperty("canEdit").GetBoolean().ShouldBeFalse();
@@ -187,7 +187,7 @@ public sealed class SourceEditingTests
 
             foreach (JsonDocument json in new[] { remote, noAddress, proxied, local })
             {
-                json.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "sourcesFile"], ignoreOrder: true);
+                json.RootElement.PropertyNames().ShouldBe(["sources", "canEdit", "machine", "remoteEdit", "version", "sourcesFile"], ignoreOrder: true);
                 json.RootElement.GetProperty("canEdit").GetBoolean().ShouldBeTrue();
                 json.RootElement.GetProperty("remoteEdit").GetBoolean().ShouldBeTrue();
                 json.RootElement.GetProperty("machine").GetString().ShouldBe(Environment.MachineName);

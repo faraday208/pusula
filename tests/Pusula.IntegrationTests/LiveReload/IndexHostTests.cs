@@ -29,11 +29,12 @@ public sealed class IndexHostTests : IDisposable
         _root.Dispose();
     }
 
-    private IndexHost CreateHost(string? root = null, SourceProfile profile = SourceProfile.Claude)
+    private IndexHost CreateHost(string? root = null, SourceProfile profile = SourceProfile.Claude, ILogger<IndexBuilder>? builderLog = null, TimeSpan? disposeTimeout = null)
     {
-        var host = new IndexHost(new IndexBuilder(_builderLog), root ?? _root.Path, profile, _hostLog)
+        var host = new IndexHost(new IndexBuilder(builderLog ?? _builderLog), root ?? _root.Path, profile, _hostLog)
         {
             WatcherRetryDelay = TimeSpan.FromMilliseconds(200),
+            DisposeTimeout = disposeTimeout ?? Timeout,
         };
         _hosts.Add(host);
         return host;
@@ -128,6 +129,153 @@ public sealed class IndexHostTests : IDisposable
         await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);
 
         _hostLog.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Error);
+    }
+
+    // ---- Closing, in whatever order ---------------------------------------------------------------------------
+
+    private const int Rounds = 100;
+
+    [Fact]
+    public async Task StopAsync_AfterTheHostWasDisposed_IsHarmless()
+    {
+        IndexHost host = await StartHostAsync();
+
+        host.Dispose();
+        await host.StopAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        _hostLog.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_AfterTheHostWasDisposed_DoesNothing()
+    {
+        _root.Write("rules/a.md", "# A\n");
+        IndexHost host = await StartHostAsync();
+        host.Dispose();
+        _root.Write("rules/b.md", "# B\n");
+
+        await host.RefreshAsync(TestContext.Current.CancellationToken);
+        await host.RefreshSafelyAsync();
+
+        host.Current.Version.ShouldBe(1);
+        host.Current.Files.Keys.ShouldBe(["rules/a.md"]);
+        _hostLog.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+    }
+
+    // What the host's own timer and the watcher do, and what the registry does when a source goes, can come at any
+    // moment while the host is being taken down: none of it may throw, and no watcher may be left running.
+    [Fact]
+    public async Task StopAsyncAndDispose_AtTheSameTimeAndManyTimes_NeverThrowAndLeaveNoWatcherBehind()
+    {
+        int watchers = OpenWatchers.Count();
+
+        for (int round = 0; round < Rounds; round++)
+        {
+            using var folder = new TempDirectory();
+            folder.Write("rules/a.md", "# A\n");
+            var host = new IndexHost(new IndexBuilder(NullLogger<IndexBuilder>.Instance), folder.Path, SourceProfile.Claude, _hostLog);
+            await host.StartAsync(TestContext.Current.CancellationToken);
+            Task ended = RegistryHarness.StreamEndsAsync(host);
+
+            await Race.RunAsync(
+                () => host.StopAsync(TestContext.Current.CancellationToken),
+                () => Dispose(host),
+                () => host.StopAsync(TestContext.Current.CancellationToken),
+                () => Dispose(host),
+                () => host.RefreshAsync(TestContext.Current.CancellationToken),
+                () => WriteAsync(folder, $"rules/round{round}.md"));
+
+            await ended.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        }
+
+        _hostLog.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+        await OpenWatchers.WaitUntilNoMoreThanAsync(watchers);
+
+        static Task Dispose(IndexHost host)
+        {
+            host.Dispose();
+            return Task.CompletedTask;
+        }
+
+        static Task WriteAsync(TempDirectory folder, string path)
+        {
+            folder.Write(path, "# written while the host closes\n");
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task StopAsyncAndDispose_WhileARebuildIsUnderWay_WaitForItAndThenTakeTheHostDown()
+    {
+        var latch = new Latch();
+        IndexHost host = CreateHost(builderLog: new BlockingLogger<IndexBuilder>(_builderLog, latch, "Indexed "));
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(() => BuildCount >= 2, "the catch-up rebuild after the start");
+        await using IAsyncEnumerator<IndexChange> changes = host.WatchAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
+        Task<bool> first = changes.MoveNextAsync().AsTask();
+
+        // The rebuild has scanned the folder and is held at the end of the scan, with the gate.
+        _root.Write("rules/a.md", "# A\n");
+        latch.Arm();
+        Task rebuild = Task.Run(() => host.RefreshAsync(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+        await latch.ParkedAsync();
+
+        Task stopping = host.StopAsync(TestContext.Current.CancellationToken);
+        Task disposing = Task.Factory.StartNew(host.Dispose, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await Task.Delay(TimeSpan.FromMilliseconds(300), TestContext.Current.CancellationToken);
+
+        stopping.IsCompleted.ShouldBeFalse();
+        disposing.IsCompleted.ShouldBeFalse();
+        first.IsCompleted.ShouldBeFalse();
+
+        latch.Release();
+        await Task.WhenAll(rebuild, stopping, disposing).WaitAsync(Timeout, TestContext.Current.CancellationToken);
+
+        // The rebuild that was under way was finished and its index kept; then the sequence ended. (The host ends it right
+        // after the last announcement, so a subscriber that has not read that one yet may not get it.)
+        host.Current.Version.ShouldBe(2);
+        host.Current.Files.Keys.ShouldBe(["rules/a.md"]);
+        bool more = await first.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        while (more)
+        {
+            more = await changes.MoveNextAsync().AsTask().WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        }
+
+        _hostLog.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+    }
+
+    // A rebuild that is not done by the time Dispose has waited as long as it is told to does not hold it up: the rebuild is
+    // the last one in the gate, and takes the host down when it leaves.
+    [Fact]
+    public async Task Dispose_WhileARebuildTakesLongerThanTheTimeout_ReturnsAndTheRebuildTakesTheHostDownWhenItIsDone()
+    {
+        int watchers = OpenWatchers.Count();
+        var latch = new Latch();
+        IndexHost host = CreateHost(builderLog: new BlockingLogger<IndexBuilder>(_builderLog, latch, "Indexed "), disposeTimeout: TimeSpan.FromMilliseconds(200));
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(() => BuildCount >= 2, "the catch-up rebuild after the start");
+        await using IAsyncEnumerator<IndexChange> changes = host.WatchAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
+        Task<bool> first = changes.MoveNextAsync().AsTask();
+        latch.Arm();
+        Task rebuild = Task.Run(() => host.RefreshAsync(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+        await latch.ParkedAsync();
+
+        host.Dispose();
+
+        rebuild.IsCompleted.ShouldBeFalse();
+        first.IsCompleted.ShouldBeFalse();
+        _hostLog.Entries.ShouldContain(entry => entry.Level == LogLevel.Warning && entry.Message.Contains("still under way", StringComparison.Ordinal));
+
+        latch.Release();
+        await rebuild.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        bool more = await first.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        while (more)
+        {
+            more = await changes.MoveNextAsync().AsTask().WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        }
+
+        await OpenWatchers.WaitUntilNoMoreThanAsync(watchers);
     }
 
     // ---- Rebuilds and announcements ---------------------------------------------------------------------------
@@ -314,7 +462,11 @@ public sealed class IndexHostTests : IDisposable
 
         change.Version.ShouldBe(2);
         change.Changed.ShouldBe(["rules/a.md"]);
-        _hostLog.Entries.ShouldContain(entry => entry.Level == LogLevel.Information && entry.Message.Contains("version 2", StringComparison.Ordinal));
+
+        // The host announces the change first and logs it after that, so the entry may come a moment later than the change.
+        await WaitUntilAsync(
+            () => _hostLog.Entries.Any(entry => entry.Level == LogLevel.Information && entry.Message.Contains("version 2", StringComparison.Ordinal)),
+            "the host to log the new version");
     }
 
     [Fact]

@@ -121,6 +121,39 @@ public sealed class CommandLineTests
         configuration.Build().GetSection("Pusula").Get<PusulaOptions>()!.Roots.ShouldBeNull();
     }
 
+    // ---- WantsVersion: pusula --version, answered before anything else -----------------------------------------
+
+    [Fact]
+    public void WantsVersion_VersionOptionOnly_IsTrue() =>
+        CommandLine.Parse(["--version"]).WantsVersion.ShouldBeTrue();
+
+    // Whatever stands before it, the folders (which are not looked at then) or other options.
+    [Fact]
+    public void WantsVersion_VersionOptionAfterFoldersAndOtherOptions_IsTrue()
+    {
+        CommandLine.Parse(["/home/user/.claude", "--version"]).WantsVersion.ShouldBeTrue();
+        CommandLine.Parse(["--urls", "http://localhost:1", "--version"]).WantsVersion.ShouldBeTrue();
+        CommandLine.Parse(["/first", "/second", "--Pusula:AllowedHosts", "a;b", "--version"]).WantsVersion.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void WantsVersion_NoVersionOption_IsFalse()
+    {
+        CommandLine.Parse([]).WantsVersion.ShouldBeFalse();
+        CommandLine.Parse(["/home/user/.claude"]).WantsVersion.ShouldBeFalse();
+        CommandLine.Parse(["--urls", "http://localhost:1"]).WantsVersion.ShouldBeFalse();
+    }
+
+    // Only the option itself asks: a folder or an option that merely has the word in it does not.
+    [Fact]
+    public void WantsVersion_OtherArgumentsWithTheWordInThem_IsFalse()
+    {
+        CommandLine.Parse(["version"]).WantsVersion.ShouldBeFalse();
+        CommandLine.Parse(["--versions"]).WantsVersion.ShouldBeFalse();
+        CommandLine.Parse(["-version"]).WantsVersion.ShouldBeFalse();
+        CommandLine.Parse(["--Pusula:Root=/version"]).WantsVersion.ShouldBeFalse();
+    }
+
     // ---- FindRootError: the folder given as the first argument, checked before the host is built ---------------
 
     private const string Home = "/home/test";

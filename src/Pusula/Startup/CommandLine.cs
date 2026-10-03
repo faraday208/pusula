@@ -8,6 +8,16 @@ namespace Pusula.Startup;
 /// <param name="HostArguments">The remaining arguments, in their original order.</param>
 internal sealed record CommandLine(string[] Roots, string[] HostArguments)
 {
+    /// <summary>The option that asks for the version: <c>pusula --version</c>.</summary>
+    internal const string VersionOption = "--version";
+
+    /// <summary>
+    /// Whether the command line asks for the version: <see cref="VersionOption"/> is among the host arguments, whatever
+    /// stands before it (the folders, other options). It is answered before anything else, so no folder is looked at and
+    /// no host is built.
+    /// </summary>
+    public bool WantsVersion => HostArguments.Contains(VersionOption);
+
     /// <summary>
     /// Takes the arguments at the start as the folders, up to the first one that is empty or starts with <c>-</c>
     /// (the rest, an option's value such as the one of <c>--urls</c> included, belongs to the host). The folders must

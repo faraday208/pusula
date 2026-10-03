@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an idea or an improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        pusula is small and selective: every feature rests on a real use, and a feature nobody uses is removed. A real situation helps more than a general wish. Known gaps are listed under **Limits** in the README.
+
+        **Please do not paste real private content** (your configuration, notes, names, paths, host names or IP addresses).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The situation or the problem, and what gets in your way today.
+      placeholder: When I ..., I want to ..., but ...
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like pusula to do?
+      description: Your idea, if you have one, and how it should look or behave.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do instead today?
+      description: A workaround, another tool, or other ideas you considered.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send
+      options:
+        - label: I searched the existing issues and did not find this one.
+          required: true
