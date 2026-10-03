@@ -6,7 +6,9 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
-The first public release, to be tagged `v0.1.0`. Runs from source with the .NET 10 SDK (`dotnet run`).
+## [0.1.0] - 2026-10-03
+
+The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).
 
 ### Added
 
@@ -27,3 +29,6 @@ The first public release, to be tagged `v0.1.0`. Runs from source with the .NET 
   a strict Content Security Policy, origin checks for every change, scan limits for very large folders.
 - English and Turkish user interface; keyboard and touch friendly.
 - A synthetic demo in `samples/`; the version is shown on the Sources page and printed by `--version`.
+
+[Unreleased]: https://github.com/faraday208/pusula/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/faraday208/pusula/releases/tag/v0.1.0
