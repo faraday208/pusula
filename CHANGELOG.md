@@ -6,6 +6,12 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- On Windows, **Choose folder…** also searches fixed and removable drives (system folders left out) and treats folders
+  with the Hidden or System attribute, such as AppData, as hidden.
+- Built and tested on Linux, Windows and macOS on every change.
+
 ## [0.1.0] - 2026-10-03
 
 The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).
