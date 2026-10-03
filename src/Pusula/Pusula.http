@@ -149,9 +149,9 @@ path=~/Documents/notlar
 ### The folder browser: the folders inside a folder of this machine, for picking the folder of a new source instead of typing its path
 # Only folder names and counts leave the server: never the name or the content of a file. Nothing is written.
 # "path" is absolute or starts with ~ (the home directory); left out (or blank) it is the home directory, where a page starts.
-# Folders that start with a dot are left out unless "hidden=1" is given (the .claude folder of the home directory is always listed),
-# "node_modules" never is. They come sorted by name, ignoring case, in Turkish alphabetical order; at most 500 ("truncated": true says
-# there are more).
+# Folders that start with a dot (on Windows also the folders with the Hidden or System attribute, such as AppData) are left out unless
+# "hidden=1" is given (the .claude folder of the home directory is always listed), "node_modules" never is. They come sorted by name,
+# ignoring case, in Turkish alphabetical order; at most 500 ("truncated": true says there are more).
 #   "path" / "display"  the folder as a full path and as a person writes it: ~ for the home directory, ~/... below it, the full path elsewhere
 #   "parent"            the folder above; left out at the root of the file system
 #   "home"              the home directory
@@ -178,10 +178,14 @@ Accept: application/json
 
 ### The vaults and the Claude Code folder of this machine, to offer as sources
 # Looks for folders with a .obsidian directory (vaults) in the home directory (4 levels deep) and below /mnt and /media (4 levels), and
-# /Volumes on macOS (3 levels), and for the .claude folder of the home directory. It does not go into hidden folders, node_modules,
-# bin or obj, nor into a vault. It stops after about 1.5 seconds or 100,000 file system entries: "complete": false then says there may
-# be more. The result is remembered for 60 seconds ("listed" always says what the sources are now). The folders have the form of those
-# of GET /api/browse and come sorted by "name" (ignoring case, in Turkish alphabetical order) and, for the same name, by "display".
+# /Volumes on macOS (3 levels), and for the .claude folder of the home directory. On Windows it looks in the root of every ready fixed
+# or removable drive instead of /mnt and /media (4 levels), but not into the Windows, Program Files, Program Files (x86), ProgramData,
+# Users, PerfLogs, Recovery and System Volume Information folders at the top of a drive, nor into the ones whose names start with $.
+# It does not go into hidden folders (a name that starts with a dot; on Windows also a folder with the Hidden or System attribute, such
+# as AppData), node_modules, bin or obj, nor into a vault. It stops after about 1.5 seconds or 100,000 file system entries: "complete":
+# false then says there may be more. The result is remembered for 60 seconds ("listed" always says what the sources are now). The folders
+# have the form of those of GET /api/browse and come sorted by "name" (ignoring case, in Turkish alphabetical order) and, for the same
+# name, by "display".
 GET {{baseUrl}}/api/browse/found
 Accept: application/json
 

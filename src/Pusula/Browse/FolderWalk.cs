@@ -8,7 +8,8 @@ internal static class FolderWalk
     /// <summary>Compares the paths of folders the way the platform does.</summary>
     internal static readonly StringComparer PathComparer = StringComparer.FromComparison(PathComparison.Current);
 
-    // Every entry is listed, hidden ones too (the scans decide what is hidden by name); what cannot be read is left out.
+    // Every entry is listed, hidden ones too: the scans decide what is hidden, by name and, for the folders that the browser lists
+    // and the search enters, on Windows by attribute too (see FolderNames). What cannot be read is left out.
     private static readonly EnumerationOptions ListingOptions = new()
     {
         AttributesToSkip = 0,

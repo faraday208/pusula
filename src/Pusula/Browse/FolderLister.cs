@@ -11,10 +11,11 @@ internal static class FolderLister
 {
     /// <summary>
     /// Lists the folders inside <paramref name="folder"/>, sorted (see <see cref="FolderNames.Compare"/>) and cut at the
-    /// limit. Hidden folders (names that start with a dot) are left out unless <paramref name="includeHidden"/> says
-    /// otherwise, except the <c>.claude</c> of the home directory, and <c>node_modules</c> is never listed. A folder that
-    /// cannot be read has no folders to list. Each folder is described by <see cref="Describe"/>, with the Markdown count
-    /// that the budget of the limits allows for the whole listing.
+    /// limit. Hidden folders (names that start with a dot and, on Windows, folders with the Hidden or System attribute, such
+    /// as <c>AppData</c>: see <see cref="FolderNames.IsHidden(DirectoryInfo)"/>) are left out unless
+    /// <paramref name="includeHidden"/> says otherwise, except the <c>.claude</c> of the home directory, and
+    /// <c>node_modules</c> is never listed. A folder that cannot be read has no folders to list. Each folder is described by
+    /// <see cref="Describe"/>, with the Markdown count that the budget of the limits allows for the whole listing.
     /// </summary>
     /// <param name="folder">Full path of the folder, which exists.</param>
     /// <param name="includeHidden">Whether the hidden folders are listed.</param>
@@ -31,7 +32,7 @@ internal static class FolderLister
         {
             foreach (DirectoryInfo directory in FolderWalk.Folders(folder))
             {
-                if (IsListed(directory.Name, includeHidden, isHome))
+                if (IsListed(directory, includeHidden, isHome))
                 {
                     names.Add(directory.Name);
                 }
@@ -83,13 +84,13 @@ internal static class FolderLister
     }
 
     // Hidden folders are left out unless asked for: but the .claude of the home directory is the one that is wanted most.
-    private static bool IsListed(string name, bool includeHidden, bool isHome)
+    private static bool IsListed(DirectoryInfo directory, bool includeHidden, bool isHome)
     {
-        if (FolderNames.IsNodeModules(name))
+        if (FolderNames.IsNodeModules(directory.Name))
         {
             return false;
         }
 
-        return !FolderNames.IsHidden(name) || includeHidden || (isHome && FolderNames.IsClaudeFolder(name));
+        return !FolderNames.IsHidden(directory) || includeHidden || (isHome && FolderNames.IsClaudeFolder(directory.Name));
     }
 }

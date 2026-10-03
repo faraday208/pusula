@@ -132,6 +132,26 @@ public sealed class FolderFinderTests
     }
 
     [Fact]
+    public void Find_FoldersWithTheHiddenOrSystemAttributeOnWindows_AreNotEntered()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs the attributes of Windows.");
+        using var temp = new TempDirectory();
+        MakeVault(temp, "home/AppData/Local/Vault");
+        MakeVault(temp, "home/Config/Vault");
+        MakeVault(temp, "home/HiddenVault");
+        MakeVault(temp, "home/Documents/Vault");
+        File.SetAttributes(temp.Resolve("home/AppData"), FileAttributes.Hidden);
+        File.SetAttributes(temp.Resolve("home/Config"), FileAttributes.System);
+        File.SetAttributes(temp.Resolve("home/HiddenVault"), FileAttributes.Hidden | FileAttributes.System);
+
+        FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
+
+        // A vault that is hidden itself is not found, like one inside a hidden folder.
+        Paths(found).ShouldBe([temp.Resolve("home/Documents/Vault")]);
+        found.Complete.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Find_FolderCalledLikeOneThatIsNotEnteredButIsNot_IsSearched()
     {
         using var temp = new TempDirectory();
@@ -227,6 +247,85 @@ public sealed class FolderFinderTests
         var drives = new DriveFolders([new SearchRoot(temp.Resolve("drive"), MaxDepth: 0)]);
 
         Finder(temp, drives).Find(TestContext.Current.CancellationToken).Folders.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Find_NamesThatARootSkipsAtItsTop_AreNotEnteredAndNotFoundThere()
+    {
+        using var temp = new TempDirectory();
+        MakeVault(temp, "drive/System/Vault");
+        MakeVault(temp, "drive/Temp-1/Vault");
+        MakeVault(temp, "drive/Temp-2/Vault");
+        temp.CreateDirectory("drive/Config/.obsidian");
+        MakeVault(temp, "drive/Work/Vault");
+        var drives = new DriveFolders([new SearchRoot(temp.Resolve("drive"), MaxDepth: 4) { SkippedAtTop = ["System", "Config", "Temp-*"] }]);
+
+        FoundFolders found = Finder(temp, drives).Find(TestContext.Current.CancellationToken);
+
+        // The Config folder is a vault itself and is not found either: what is skipped is neither entered nor looked at.
+        Paths(found).ShouldBe([temp.Resolve("drive/Work/Vault")]);
+        found.Complete.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Find_NameThatARootSkipsAtItsTop_IsSearchedFurtherDown()
+    {
+        using var temp = new TempDirectory();
+        MakeVault(temp, "drive/System/Vault");
+        MakeVault(temp, "drive/Work/System/Vault");
+        MakeVault(temp, "drive/Work/Temp-1/Vault");
+        var drives = new DriveFolders([new SearchRoot(temp.Resolve("drive"), MaxDepth: 4) { SkippedAtTop = ["System", "Temp-*"] }]);
+
+        FoundFolders found = Finder(temp, drives).Find(TestContext.Current.CancellationToken);
+
+        Paths(found).ShouldBe([temp.Resolve("drive/Work/System/Vault"), temp.Resolve("drive/Work/Temp-1/Vault")], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void Find_NamesThatOneRootSkips_AreSearchedInTheOtherRootsAndInTheHomeDirectory()
+    {
+        using var temp = new TempDirectory();
+        MakeVault(temp, "home/System/Vault");
+        MakeVault(temp, "first/System/Vault");
+        MakeVault(temp, "second/System/Vault");
+        var drives = new DriveFolders(
+        [
+            new SearchRoot(temp.Resolve("first"), MaxDepth: 4) { SkippedAtTop = ["System"] },
+            new SearchRoot(temp.Resolve("second"), MaxDepth: 4),
+        ]);
+
+        FoundFolders found = Finder(temp, drives).Find(TestContext.Current.CancellationToken);
+
+        Paths(found).ShouldBe([temp.Resolve("home/System/Vault"), temp.Resolve("second/System/Vault")], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void Find_DriveOfWindows_IsSearchedFourLevelsDeepAndNotInItsSystemFolders()
+    {
+        using var temp = new TempDirectory();
+        string[] systemFolders =
+        [
+            "Windows", "Program Files", "Program Files (x86)", "ProgramData", "Users", "PerfLogs", "Recovery", "System Volume Information",
+            "$Recycle.Bin", "$WinREAgent",
+        ];
+        foreach (string name in systemFolders)
+        {
+            MakeVault(temp, $"drive/{name}/Vault");
+        }
+
+        MakeVault(temp, "drive/a/b/c/Vault");
+        MakeVault(temp, "drive/a/b/c/d/TooDeep");
+        MakeVault(temp, "drive/Documents/Vault");
+        MakeVault(temp, "drive/work/Users/Vault");
+        DriveFolders drives = DriveFolders.ForWindowsDrives([temp.Resolve("drive")]);
+
+        FoundFolders found = Finder(temp, drives).Find(TestContext.Current.CancellationToken);
+
+        // Level 4 is the deepest, like below /mnt; a system folder further down is a folder like any other.
+        Paths(found).ShouldBe(
+            [temp.Resolve("drive/a/b/c/Vault"), temp.Resolve("drive/Documents/Vault"), temp.Resolve("drive/work/Users/Vault")],
+            ignoreOrder: true);
+        found.Complete.ShouldBeTrue();
     }
 
     [Fact]

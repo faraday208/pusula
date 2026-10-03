@@ -3,7 +3,7 @@ using Pusula.Indexing;
 
 namespace Pusula.Browse;
 
-/// <summary>Which folder names the browser shows, enters and leaves out, and in what order the shown ones come.</summary>
+/// <summary>Which folders the browser shows, enters and leaves out (by their names and, for hidden ones on Windows, by their attributes), and in what order the shown ones come.</summary>
 internal static class FolderNames
 {
     /// <summary>The folder of the home directory that a listing shows even when hidden folders are left out.</summary>
@@ -11,9 +11,29 @@ internal static class FolderNames
 
     private static readonly CompareInfo Turkish = FindTurkish(CultureInfo.GetCultureInfo);
 
-    /// <summary>Whether the name is that of a hidden folder: it starts with a dot.</summary>
+    /// <summary>
+    /// Whether the name is that of a hidden folder: it starts with a dot. This is the rule of the index and of the count of
+    /// Markdown files, which leave out hidden files and folders by their names; the folders that the browser lists and the
+    /// search enters are asked <see cref="IsHidden(DirectoryInfo)"/>.
+    /// </summary>
     /// <param name="name">The name of a folder, not a path.</param>
     public static bool IsHidden(string name) => name.StartsWith('.');
+
+    /// <summary>
+    /// Whether the folder is hidden: its name starts with a dot or, on Windows, its attributes include Hidden or System
+    /// (that is how <c>AppData</c> and <c>ProgramData</c> are hidden, and what Explorer goes by). Other systems keep to the
+    /// name alone, as before: there .NET calls a folder Hidden because of its name, which <see cref="IsHidden(string)"/>
+    /// sees as well, and on macOS also because of a flag of the system (<c>~/Library</c> has it), which does not hide a
+    /// folder from the browser.
+    /// </summary>
+    /// <param name="folder">The folder. On Windows one that came from a listing has its attributes already, so asking costs nothing.</param>
+    public static bool IsHidden(DirectoryInfo folder) =>
+        IsHidden(folder.Name) || (OperatingSystem.IsWindows() && HasHiddenAttribute(folder.Attributes));
+
+    /// <summary>Whether the attributes of a folder make it hidden on Windows: they include Hidden or System.</summary>
+    /// <param name="attributes">The attributes of the folder.</param>
+    internal static bool HasHiddenAttribute(FileAttributes attributes) =>
+        (attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0;
 
     /// <summary>Whether the name is <c>node_modules</c>, a folder that nothing here lists or enters.</summary>
     /// <param name="name">The name of a folder, not a path.</param>

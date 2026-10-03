@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pusula.Browse;
+using Pusula.UnitTests.Support;
 using Shouldly;
 using Xunit;
 
@@ -23,6 +24,63 @@ public sealed class FolderNamesTests
     [InlineData("", false)]
     public void IsHidden_Name_IsHiddenWhenItStartsWithADot(string name, bool expected) =>
         FolderNames.IsHidden(name).ShouldBe(expected);
+
+    [Theory]
+    [InlineData(FileAttributes.Hidden, true)]
+    [InlineData(FileAttributes.System, true)]
+    [InlineData(FileAttributes.Hidden | FileAttributes.System, true)]
+    [InlineData(FileAttributes.Directory | FileAttributes.Hidden | FileAttributes.ReparsePoint, true)]
+    [InlineData(FileAttributes.Directory | FileAttributes.System | FileAttributes.ReadOnly, true)]
+    [InlineData(FileAttributes.Directory, false)]
+    [InlineData(FileAttributes.Directory | FileAttributes.ReadOnly | FileAttributes.Archive, false)]
+    [InlineData(FileAttributes.Directory | FileAttributes.ReparsePoint, false)]
+    [InlineData(FileAttributes.Normal, false)]
+    public void HasHiddenAttribute_Attributes_AreHiddenWhenTheyIncludeHiddenOrSystem(FileAttributes attributes, bool expected) =>
+        FolderNames.HasHiddenAttribute(attributes).ShouldBe(expected);
+
+    [Fact]
+    public void IsHidden_FolderWithADotAtTheStart_IsHiddenOnEverySystem()
+    {
+        using var temp = new TempDirectory();
+
+        FolderNames.IsHidden(new DirectoryInfo(temp.CreateDirectory(".config"))).ShouldBeTrue();
+        FolderNames.IsHidden(new DirectoryInfo(temp.CreateDirectory("config"))).ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(FileAttributes.Hidden)]
+    [InlineData(FileAttributes.System)]
+    [InlineData(FileAttributes.Hidden | FileAttributes.System)]
+    public void IsHidden_FolderWithTheHiddenOrSystemAttributeOnWindows_IsHidden(FileAttributes attributes)
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs the attributes of Windows.");
+        using var temp = new TempDirectory();
+        string plain = temp.CreateDirectory("Plain");
+        string marked = temp.CreateDirectory("AppData");
+        File.SetAttributes(marked, attributes);
+
+        FolderNames.IsHidden(new DirectoryInfo(marked)).ShouldBeTrue();
+        FolderNames.IsHidden(new DirectoryInfo(plain)).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsHidden_FolderThatTheSystemMarksHiddenWithoutADotOutsideWindows_IsNotHidden()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows hides a folder by its attributes.");
+        using var temp = new TempDirectory();
+        string folder = temp.CreateDirectory("Library");
+        try
+        {
+            // macOS has a hidden flag, and it is set here; elsewhere there is nothing to set and the call changes nothing.
+            File.SetAttributes(folder, FileAttributes.Hidden);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or PlatformNotSupportedException)
+        {
+            Assert.Skip($"The hidden flag cannot be set here: {exception.Message}");
+        }
+
+        FolderNames.IsHidden(new DirectoryInfo(folder)).ShouldBeFalse();
+    }
 
     [Fact]
     public void IsNodeModules_OnlyThatName()

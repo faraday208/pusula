@@ -177,6 +177,35 @@ public sealed class FolderListerTests
     }
 
     [Fact]
+    public void List_FoldersWithTheHiddenOrSystemAttributeOnWindows_AreLeftOutUnlessAskedFor()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs the attributes of Windows.");
+        using var temp = new TempDirectory();
+        temp.CreateDirectory("visible");
+        File.SetAttributes(temp.CreateDirectory("AppData"), FileAttributes.Hidden);
+        File.SetAttributes(temp.CreateDirectory("ProgramData"), FileAttributes.Hidden | FileAttributes.System);
+        File.SetAttributes(temp.CreateDirectory("Junction"), FileAttributes.System);
+
+        Names(List(temp.Path)).ShouldBe(["visible"]);
+        Names(List(temp.Path, includeHidden: true)).ShouldBe(["AppData", "Junction", "ProgramData", "visible"]);
+    }
+
+    [Fact]
+    public void List_HomeOnWindows_HasTheClaudeFolderAndNotTheFoldersHiddenByAttribute()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs the attributes of Windows.");
+        using var temp = new TempDirectory();
+        string home = temp.CreateDirectory("home");
+        temp.CreateDirectory("home/.claude");
+        temp.CreateDirectory("home/.ssh");
+        File.SetAttributes(temp.CreateDirectory("home/AppData"), FileAttributes.Hidden);
+        temp.CreateDirectory("home/Documents");
+
+        Names(List(home, home: home)).ShouldBe([".claude", "Documents"]);
+        Names(List(home, includeHidden: true, home: home)).ShouldBe([".claude", ".ssh", "AppData", "Documents"]);
+    }
+
+    [Fact]
     public void List_NodeModules_IsNeverListed()
     {
         using var temp = new TempDirectory();

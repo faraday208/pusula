@@ -7,9 +7,12 @@ namespace Pusula.Browse;
 
 /// <summary>
 /// Looks for the folders that a user is likely to want to show: Obsidian vaults (a folder with a <c>.obsidian</c>
-/// directory) in the home directory and the drive folders (<see cref="DriveFolders"/>), and the <c>.claude</c> folder of
-/// the home directory. The search goes level by level, so that what is close to a root is found before what is deep down.
-/// It does not go into hidden folders, <c>node_modules</c>, <c>bin</c> and <c>obj</c>, nor into a vault; it follows a
+/// directory) in the home directory and the drive folders (<see cref="DriveFolders"/>: <c>/mnt</c> and <c>/media</c>, the
+/// drives themselves on Windows), and the <c>.claude</c> folder of the home directory. The search goes level by level, so
+/// that what is close to a root is found before what is deep down. It does not go into hidden folders (see
+/// <see cref="FolderNames.IsHidden(DirectoryInfo)"/>: on Windows that includes the ones with the Hidden or System attribute,
+/// such as <c>AppData</c>), <c>node_modules</c>, <c>bin</c> and <c>obj</c>, nor into a vault, nor at the top of a root into
+/// the folders the root skips (<see cref="SearchRoot.SkippedAtTop"/>: the system folders of a Windows drive); it follows a
 /// symbolic link once; and it stops at the budget of <see cref="BrowseLimits"/>, which makes
 /// <see cref="FoundFolders.Complete"/> false. The result is remembered for <see cref="BrowseLimits.CacheLifetime"/>.
 /// Folders are only ever read.
@@ -99,7 +102,7 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
                 && FolderWalk.RealPath(new DirectoryInfo(root.Path), parentRealPath: null) is { } realPath
                 && seen.Add(realPath))
             {
-                queue.Enqueue(new Level(root.Path, realPath, Depth: 0, root.MaxDepth));
+                queue.Enqueue(new Level(root.Path, realPath, Depth: 0, root.MaxDepth, root));
             }
         }
 
@@ -112,6 +115,7 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
 
     // Reads the folders inside one folder. A folder with a .obsidian directory is found and not entered; the roots
     // themselves are never found (the home directory is too broad to be a source, and a drive folder is no vault).
+    // A folder that is skipped is neither found nor entered, vault or not.
     // Internal for the tests: a folder that went away in the middle of a search cannot be made to go away from outside.
     internal static void Visit(Level level, ScanBudget budget, HashSet<string> seen, Queue<Level> queue, List<string> found)
     {
@@ -124,7 +128,7 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
                     return;
                 }
 
-                if (entry is not DirectoryInfo child || IsSkipped(child.Name) || FolderWalk.RealPath(child, level.RealPath) is not { } realPath || !seen.Add(realPath))
+                if (entry is not DirectoryInfo child || IsSkipped(child, level) || FolderWalk.RealPath(child, level.RealPath) is not { } realPath || !seen.Add(realPath))
                 {
                     continue;
                 }
@@ -145,8 +149,11 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
         }
     }
 
-    private static bool IsSkipped(string name) =>
-        FolderNames.IsHidden(name) || Array.Exists(SkippedFolders, skipped => string.Equals(skipped, name, PathComparison.Current));
+    // A hidden folder, one that holds what is built or fetched, and at the top of a root the folders that the root names.
+    private static bool IsSkipped(DirectoryInfo child, Level level) =>
+        FolderNames.IsHidden(child)
+        || Array.Exists(SkippedFolders, skipped => string.Equals(skipped, child.Name, PathComparison.Current))
+        || level.Root?.Skips(child.Name) == true;
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Searched for vaults: {Count} found, complete {Complete}, in {ElapsedMs:F1} ms")]
     private partial void LogSearched(int count, bool complete, double elapsedMs);
@@ -156,7 +163,8 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
     /// <param name="RealPath">Its real path.</param>
     /// <param name="Depth">How many levels below its root it is.</param>
     /// <param name="MaxDepth">How many levels below the root the search goes.</param>
-    internal readonly record struct Level(string Path, string RealPath, int Depth, int MaxDepth);
+    /// <param name="Root">The root, for the level that is the root itself (depth 0); null for the folders below it. The names it skips apply to its top only.</param>
+    internal readonly record struct Level(string Path, string RealPath, int Depth, int MaxDepth, SearchRoot? Root = null);
 
     private sealed record Remembered(FoundFolders Found, DateTimeOffset At);
 }

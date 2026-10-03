@@ -268,7 +268,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         {
             "PathNotAbsolute", "FolderNotFound", "Remote", "CommandLine", "CrossOrigin", "hidden=1", "node_modules", "truncated", "markdownCount", "more",
             "listed", "Vault", "Claude", "Turkish", "Pusula:AllowRemoteEdit", "Sec-Fetch-Site", "never the name or the content of a file", "X-Forwarded-For",
-            "2,000 file system entries", "the file count of a source over it", "'plugins' and 'sessions'",
+            "2,000 file system entries", "the file count of a source over it", "'plugins' and 'sessions'", "Hidden or System attribute",
         })
         {
             description.ShouldContain(text);
@@ -288,7 +288,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         get.GetProperty("responses").GetProperty("403").GetProperty("content").TryGetProperty("application/problem+json", out _).ShouldBeTrue();
 
         string description = get.GetProperty("description").GetString()!;
-        foreach (string text in new[] { ".obsidian", "/mnt", "/media", "/Volumes", "complete", "60 seconds", "node_modules", "100,000", "listed", "Remote", "CommandLine", "CrossOrigin", "by 'name'", "for the same name, by 'display'", "same limit for one folder" })
+        foreach (string text in new[] { ".obsidian", "/mnt", "/media", "/Volumes", "complete", "60 seconds", "node_modules", "100,000", "listed", "Remote", "CommandLine", "CrossOrigin", "by 'name'", "for the same name, by 'display'", "same limit for one folder", "every ready fixed or removable drive", "Hidden or System attribute" })
         {
             description.ShouldContain(text);
         }
