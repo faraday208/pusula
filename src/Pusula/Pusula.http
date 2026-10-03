@@ -1,0 +1,293 @@
+# Requests for every endpoint of pusula, for the REST Client of VS Code or the HTTP client of Rider and Visual Studio.
+# Start the server first:
+#   dotnet run --project src/Pusula -- <folder> [<folder> ...]        the folders to show (a Claude Code folder, a vault, ...)
+#   dotnet run --project src/Pusula                                    the sources file, else ~/.claude
+# The port is the one in appsettings.json and Properties/launchSettings.json.
+#
+# What is shown, in this order:
+#   1. the folders at the start of the command line
+#   2. the Pusula:Root setting (one folder)
+#   3. the sources file: the Pusula:SourcesFile setting, else <application data>/pusula/sources.json
+#      (the application data directory is $XDG_CONFIG_HOME or ~/.config on Linux). It is watched: when it changes, the sources
+#      are brought in line with it without a restart (a source that is not in it any more stops, a new one starts, the others
+#      keep running). The sources can also be added and removed from the browser, see POST and DELETE below.
+#   4. ~/.claude
+#
+# An example sources file. Comments and a trailing comma are allowed. Only "path" is required: "~" is the home directory
+# and a relative path is relative to the folder of the file. "name" is the name of the folder when it is left out, "id" is
+# made from the name (lowercase, Turkish letters as ASCII, everything else a hyphen; -2, -3 if taken) and must match
+# ^[a-z0-9]+(-[a-z0-9]+)*$ when written. "profile" is auto (the default: a folder with .obsidian is a vault, a folder called
+# .claude or with a CLAUDE.md next to rules/skills/projects/agents/commands is a Claude Code folder, anything else is a
+# plain Markdown folder), claude, vault or markdown, in any case. A folder that does not exist does not stop the server:
+# the source is listed as not available and its endpoints answer 503; so is a folder that is too large to show (more than
+# 20,000 Markdown files, 50,000 folders or 256 MiB of Markdown: "error" says which limit), which is not scanned again until the
+# server is started again. A folder that is named on the command line (or in Pusula:Root) and is too large stops the server with
+# one line and exit code 1. A broken file, a path that has a character no path has, or an unknown profile stops it with one line
+# when the server starts; a file that becomes broken while the server runs leaves the last valid list in place, and
+# "sourcesFileError" of GET /api/sources says why until it is fixed. An empty list ("sources": []) is a valid list.
+#
+#   {
+#     "sources": [
+#       { "id": "claude", "name": "~/.claude", "path": "~/.claude", "profile": "auto" },
+#       { "name": "Notes", "path": "~/Documents/notes" },   // a vault: the id is "notes"
+#     ]
+#   }
+#
+# Who may add and remove sources: by default only a browser on the machine the server runs on. To let every machine that can
+# reach the server do it too, start the server with the setting Pusula:AllowRemoteEdit (false by default):
+#   dotnet run --project src/Pusula -- --Pusula:AllowRemoteEdit true       (or Pusula__AllowRemoteEdit=true in the environment)
+# Anyone who can reach the server can then show any folder of this machine and read the Markdown in it, so turn it on only on a
+# network you trust. It lifts that one condition and nothing else: the sources must still come from a sources file, the request
+# must still come from a page of this server (Origin, Sec-Fetch-Site) and the Host check still comes first.
+# The folder browser (GET /api/browse, below), which a page uses to pick the folder of a new source, is open to the same requests and
+# the setting lifts the same condition for it; so anyone who can reach the server can then read the names of the folders of this machine.
+
+@baseUrl = http://localhost:5190
+
+# The id of a source, as GET /api/sources lists it (the default folder ~/.claude has the id "claude")
+@source = claude
+
+### The sources: id, name, full path, profile (Claude, Vault or Markdown), whether the folder could be read, the number of
+### indexed Markdown files and why a folder could not be read. "sourcesFile" is the sources file that the list came from
+### (or was looked for); it is left out when the folders were named on the command line or in Pusula:Root.
+# A source that is not available has "error" (an English sentence) and "errorCode", a code to act on: FolderMissing (the folder
+# does not exist, or is not a directory: the source starts when the folder appears), NotReadable (the folder could not be read)
+# or TooLarge (more than 20,000 Markdown files, 50,000 folders or 256 MiB of Markdown). The endpoints of such a source answer 503
+# with the same value as the "code" of the problem details.
+# "machine" is the name of the machine the server runs on. "remoteEdit" is the setting Pusula:AllowRemoteEdit.
+# "canEdit" says whether this request may add and remove sources: only one from the machine the server runs on may (unless
+# "remoteEdit" is true: then one from another machine may too), and only while the list comes from a sources file. "editBlocked"
+# says why not: Remote (the request is from another machine, or a reverse proxy forwarded it: it has a Forwarded, X-Forwarded-For,
+# X-Forwarded-Host or X-Real-IP header) or CommandLine (the folders were named on the command line or in Pusula:Root).
+# "sourcesFileError" is there when the sources file was changed into something that cannot be used; the last valid list is still shown.
+GET {{baseUrl}}/api/sources
+Accept: application/json
+
+### Add a source: 201 with the new source (its first index is built) and Location: /api/sources/<id>
+# Only a request from the machine the server runs on is accepted (another machine, the tailnet included, gets 403 "Remote";
+# so does a request that a reverse proxy forwarded, even one on this machine: a Forwarded, X-Forwarded-For, X-Forwarded-Host
+# or X-Real-IP header gives it away), and only while the sources come from a sources file (otherwise 403 "CommandLine"). A
+# request that carries an Origin or a Sec-Fetch-Site header, as a browser sends, must come from a page of this server
+# (otherwise 403 "CrossOrigin"). With Pusula:AllowRemoteEdit a request from another machine is accepted too (no more "Remote");
+# "CommandLine" and "CrossOrigin" stay.
+# "path" is required: absolute, or starting with ~ (the home directory). "name" is the name of the folder when left out.
+# "profile" is auto (the default), claude, vault or markdown. The sources file is written out again with the source at the end:
+# its other items stay as they are, comments in it are lost. The file and its folder are created when there is none yet.
+# A folder that is too large to show is added all the same: 201, with "available": false and the reason in "error".
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{
+  "path": "~/Documents/notlar",
+  "name": "Notlarım",
+  "profile": "auto"
+}
+
+### Add a source with the path only
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{ "path": "/home/me/vaults/work" }
+
+### Remove a source: 204. The folder itself is not touched; its event streams end. Same conditions as adding.
+DELETE {{baseUrl}}/api/sources/notlarim
+
+### Error: no source has this id -> 404 problem details, "code": "NotFound"
+DELETE {{baseUrl}}/api/sources/no-such-source
+
+### Error: the root of the file system (or the home directory itself) is too broad -> 400 problem details, "code": "TooBroad"
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{ "path": "/" }
+
+### Error: the folder does not exist -> 400, "code": "FolderNotFound"
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{ "path": "~/no-such-folder" }
+
+### Error: a path with a character that no path has (the null character, written as the JSON escape \u0000) -> 400, "code": "FolderNotFound"
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{ "path": "/home/me/notes\u0000" }
+
+### Error: a path that is neither absolute nor starts with ~ -> 400, "code": "PathNotAbsolute"
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{ "path": "notes/work" }
+
+### Error: no path -> 400, "code": "PathRequired" (the other 400 codes are InvalidName and InvalidProfile)
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{ "name": "No path" }
+
+### Error: the folder is a source already -> 409, "code": "AlreadyListed" (409 "FileInvalid": the sources file cannot be read, so it is left alone)
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+
+{ "path": "~/.claude" }
+
+### Error: a request that another web page makes in the browser on this machine -> 403, "code": "CrossOrigin"
+POST {{baseUrl}}/api/sources
+Content-Type: application/json
+Origin: http://evil.example
+
+{ "path": "~/Documents/notlar" }
+
+### Error: a body that is not sent as JSON -> 415
+POST {{baseUrl}}/api/sources
+Content-Type: text/plain
+
+path=~/Documents/notlar
+
+### The folder browser: the folders inside a folder of this machine, for picking the folder of a new source instead of typing its path
+# Only folder names and counts leave the server: never the name or the content of a file. Nothing is written.
+# "path" is absolute or starts with ~ (the home directory); left out (or blank) it is the home directory, where a page starts.
+# Folders that start with a dot are left out unless "hidden=1" is given (the .claude folder of the home directory is always listed),
+# "node_modules" never is. They come sorted by name, ignoring case, in Turkish alphabetical order; at most 500 ("truncated": true says
+# there are more).
+#   "path" / "display"  the folder as a full path and as a person writes it: ~ for the home directory, ~/... below it, the full path elsewhere
+#   "parent"            the folder above; left out at the root of the file system
+#   "home"              the home directory
+# Each folder of "folders":
+#   "name", "path", "display"
+#   "listed"        true when a source shows this very folder already (the same full path)
+#   "kind"          Vault (it has a .obsidian directory) or Claude (as a source left to "auto" would be a Claude Code folder); left out for any other folder
+#   "markdownCount" the Markdown files below it, at any depth, counted the way a source over the folder finds them: hidden folders and files are not
+#                   counted, nor node_modules in a vault or a plain folder; in a Claude folder the runtime folders directly in it (plugins, sessions, ...)
+#                   are not entered and of projects/<project>/ only memory is, so the number is the file count of a source over it. At most 999;
+#                   "more": true when there are more. One folder is read for at most 2,000 file system entries: a bigger one is counted as far as
+#                   that, with "more": true (the count can then be less than 999, even 0). The counts are given as far as the budget of one request
+#                   reaches (about 20,000 file system entries or 400 ms, the folders in the order of the list): the folders after that have neither.
+# Who may ask is who may add a source (POST /api/sources, above): only a request from the machine the server runs on (403 "Remote"
+# otherwise; with Pusula:AllowRemoteEdit any machine), only while the sources come from a sources file (403 "CommandLine"), and one whose
+# Origin and Sec-Fetch-Site headers, when it has them, say that a page of this server made it (403 "CrossOrigin"). The one difference:
+# a request the user made by hand ("Sec-Fetch-Site: none", the address typed into the browser) is accepted too, as it only reads.
+GET {{baseUrl}}/api/browse
+Accept: application/json
+
+### A folder: absolute, or starting with ~; "hidden=1" lists the hidden folders too
+GET {{baseUrl}}/api/browse?path=~/Documents&hidden=1
+Accept: application/json
+
+### The vaults and the Claude Code folder of this machine, to offer as sources
+# Looks for folders with a .obsidian directory (vaults) in the home directory (4 levels deep) and below /mnt and /media (4 levels), and
+# /Volumes on macOS (3 levels), and for the .claude folder of the home directory. It does not go into hidden folders, node_modules,
+# bin or obj, nor into a vault. It stops after about 1.5 seconds or 100,000 file system entries: "complete": false then says there may
+# be more. The result is remembered for 60 seconds ("listed" always says what the sources are now). The folders have the form of those
+# of GET /api/browse and come sorted by "name" (ignoring case, in Turkish alphabetical order) and, for the same name, by "display".
+GET {{baseUrl}}/api/browse/found
+Accept: application/json
+
+### Error: a path that is not absolute (or has a character that no path has) -> 400 problem details, "code": "PathNotAbsolute"
+GET {{baseUrl}}/api/browse?path=notes/work
+
+### Error: the folder does not exist or is not a directory -> 404, "code": "FolderNotFound"
+GET {{baseUrl}}/api/browse?path=~/no-such-folder
+
+### Error: a request that another web page makes in the browser on this machine -> 403, "code": "CrossOrigin" (the same for /api/browse/found)
+GET {{baseUrl}}/api/browse
+Origin: http://evil.example
+
+### The file tree of a source: every indexed Markdown file with its layer, load mode, tokens, broken links and orphan flag
+# "tokens" is the whole file, "everySessionTokens" only what every session loads; a directory node carries the sums below it.
+# A note of a vault or a plain Markdown folder has the layer Note, loads only on demand, and lists its "tags" (left out when it has none).
+GET {{baseUrl}}/api/sources/{{source}}/tree
+Accept: application/json
+
+### One file: use a path from the tree ("path" of a file node)
+GET {{baseUrl}}/api/sources/{{source}}/file?path=CLAUDE.md
+Accept: application/json
+
+### One file in a subdirectory (the path is URL-encoded by the client)
+# Each backlink has an "excerpt": the text of the line in its source file that links here
+GET {{baseUrl}}/api/sources/{{source}}/file?path=rules%2Fexample.md
+Accept: application/json
+
+### One file whose frontmatter is malformed: take its path from "frontmatterErrors" of the overview
+# "frontmatterError" says why. "frontmatterErrorLine" (1-based, counted from the top of the file: the opening --- is line 1)
+# and "frontmatterErrorText" (that line without the whitespace around it, at most 200 characters: a longer one is cut and ends with an ellipsis)
+# say where; both are left out when the error has no known line, for example "Frontmatter is not a mapping".
+GET {{baseUrl}}/api/sources/{{source}}/file?path=rules%2Fbroken.md
+Accept: application/json
+
+### The overview: profile, tokens per layer, heaviest files, project memory, broken and pending links, orphans, frontmatter errors, tags
+# Each entry of "frontmatterErrors" has the "path" and the "error" text, and the "line" of the error when it is known.
+# "pending" are wiki links that match nothing yet: memories (Claude Code folder) or notes (vault, Markdown folder) that are not written yet.
+# "tags" are the tags of all notes with the number of notes that carry each, most used first; empty for a Claude Code folder.
+# For a vault or a plain Markdown folder (see the example below for one) there is more, and a Claude Code folder has none of it:
+#   "entry"      the note to start from: { "path": "Home.md", "title": "Home" }. The first note without a folder that is called
+#                home, index, readme, moc or start (in that order, ignoring case and the .md); else, of the notes tagged moc or
+#                home, the one that links to the most other notes. Left out when there is none.
+#   "recent"     the notes written last, newest first: [ { "path": "Projects/Alpha.md", "modifiedAt": "2026-10-02T07:05:00+00:00" } ]
+#                (UTC, at most 8; empty for a Claude Code folder)
+#   "mostLinked" the notes with the most backlinks, most first: [ { "path": "Ideas.md", "count": 3 } ] (at most 8, the same number
+#                by path; only notes that something links to; empty for a Claude Code folder)
+# A note is in "orphans" only when it has no links at all: no note links to it and it links to no other note. (A Claude Code
+# folder keeps the old rule: a file that nothing links to.)
+GET {{baseUrl}}/api/sources/{{source}}/overview
+Accept: application/json
+
+### Live events (server-sent events): "ready" first, then one "changed" event per new index version of this source. The request stays open.
+GET {{baseUrl}}/api/sources/{{source}}/events
+Accept: text/event-stream
+
+### Health (liveness)
+GET {{baseUrl}}/health
+
+### OpenAPI document
+GET {{baseUrl}}/openapi/v1.json
+
+### The web page
+GET {{baseUrl}}/
+
+### A vault: the same endpoints (use the id from GET /api/sources; here the example sources file above, id "notes")
+# A wiki link or an embed is looked up as Obsidian does: a path from the root of the vault, then from the folder of the note,
+# then the end of a path (the name); the note in the folder of the source wins, then the shortest path. A link that finds
+# nothing is Pending (a note that is not written yet), not Broken. An attachment (image, PDF, ...) is NonMarkdown.
+GET {{baseUrl}}/api/sources/notes/file?path=Home.md
+Accept: application/json
+
+### The overview of a vault: with "entry", "recent" and "mostLinked"
+GET {{baseUrl}}/api/sources/notes/overview
+Accept: application/json
+
+### Error: a source that no id names -> 404 problem details ("Source not found")
+GET {{baseUrl}}/api/sources/no-such-source/tree
+
+### Error: a source whose folder could not be read -> 503 problem details ("Source unavailable", the reason is in "detail")
+# "code" says why, as the "errorCode" of the source in GET /api/sources does: FolderMissing, NotReadable or TooLarge
+# (only with a sources file that lists a folder that does not exist, cannot be read, or is too large to show)
+GET {{baseUrl}}/api/sources/missing/tree
+
+### Error: the old routes without a source are gone -> 404
+GET {{baseUrl}}/api/tree
+
+### Error: no path -> 400 problem details
+GET {{baseUrl}}/api/sources/{{source}}/file
+
+### Error: blank path -> 400 problem details
+GET {{baseUrl}}/api/sources/{{source}}/file?path=%20
+
+### Error: unknown file -> 404 problem details ("File not found")
+GET {{baseUrl}}/api/sources/{{source}}/file?path=does/not/exist.md
+
+### Error: a path that climbs out of the folder is just an unknown key -> 404
+GET {{baseUrl}}/api/sources/{{source}}/file?path=../../etc/passwd
+
+### Error: an absolute path is just an unknown key -> 404
+GET {{baseUrl}}/api/sources/{{source}}/file?path=/etc/passwd
+
+### Error: settings.json (and any other file that is not an indexed .md) is never served -> 404
+GET {{baseUrl}}/api/sources/{{source}}/file?path=settings.json
+
+### Error: a Host header that does not lead to this machine is rejected (DNS rebinding guard) -> 400
+GET {{baseUrl}}/api/sources
+Host: evil.example
+
+### Error: wrong method -> 405
+POST {{baseUrl}}/api/sources/{{source}}/tree

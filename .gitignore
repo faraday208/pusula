@@ -1,0 +1,11 @@
+# build and test output
+bin/
+obj/
+TestResults/
+
+# personal, per machine
+CLAUDE.local.md
+.claude/settings.local.json
+
+# impeccable design-review archive (holds real file and project names)
+.impeccable/

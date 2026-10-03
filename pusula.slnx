@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Pusula/Pusula.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Pusula.IntegrationTests/Pusula.IntegrationTests.csproj" />
+    <Project Path="tests/Pusula.UnitTests/Pusula.UnitTests.csproj" />
+  </Folder>
+</Solution>

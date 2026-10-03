@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>pusula</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+  <script src="vendor/markdown-it/markdown-it.umd.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <button id="skip-link" class="skip-link" type="button" data-i18n="nav.skip"></button>
+  <header class="topbar">
+    <button id="tree-toggle" class="icon-btn tree-toggle" type="button" aria-controls="sidebar" aria-expanded="false" data-i18n-title="nav.tree" data-i18n-aria-label="nav.tree">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <a class="brand" href="#/" aria-label="pusula">
+      <img class="brand-icon" src="favicon.svg" alt="" width="22" height="22">
+      <span class="brand-name">pusula</span>
+    </a>
+    <div id="source-host" class="source-host">
+      <button id="source-switch" class="source-switch" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="source-menu">
+        <svg class="source-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span id="source-name" class="source-name"></span>
+        <svg class="source-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div id="source-menu" class="source-menu" role="menu" data-i18n-aria-label="sources.title" hidden>
+        <ul id="source-menu-list" class="menu-list" role="none"></ul>
+        <hr class="menu-sep" role="separator">
+        <a id="source-manage" class="menu-item" role="menuitem" tabindex="-1" href="#/sources" data-i18n="source.manage"></a>
+        <div class="menu-lang" role="group" data-i18n-aria-label="lang.label">
+          <span class="menu-lang-label" aria-hidden="true" data-i18n="lang.menu"></span>
+          <span class="lang">
+            <button class="lang-btn" type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-lang="tr">TR</button>
+            <button class="lang-btn" type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-lang="en">EN</button>
+          </span>
+        </div>
+      </div>
+    </div>
+    <span class="spacer"></span>
+    <button id="quick-open" class="icon-btn search-btn" type="button" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+    </button>
+    <a id="overview-link" class="top-link" href="#/" data-i18n-title="nav.overview" data-i18n-aria-label="nav.overview">
+      <svg class="top-link-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      <span class="top-link-text" data-i18n="nav.overview"></span>
+    </a>
+    <div class="lang" role="group" data-i18n-aria-label="lang.label">
+      <button class="lang-btn" type="button" data-lang="tr" aria-pressed="false">TR</button>
+      <button class="lang-btn" type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+    <span id="live" class="live live-connecting" role="status" hidden>
+      <span class="live-dot" aria-hidden="true"></span>
+      <span id="live-text" class="live-text"></span>
+    </span>
+    <a id="last-change" class="last-change" href="#/" hidden></a>
+    <button id="info-toggle" class="icon-btn info-toggle" type="button" aria-controls="info" aria-expanded="false" data-i18n-title="nav.info" data-i18n-aria-label="nav.info">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>
+    </button>
+  </header>
+
+  <div id="stale" class="stale" hidden>
+    <svg class="stale-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>
+    <span id="stale-text"></span>
+  </div>
+
+  <div class="layout">
+    <nav id="sidebar" class="sidebar" data-i18n-aria-label="nav.tree"></nav>
+    <main id="content" class="content" tabindex="-1"></main>
+    <aside id="info" class="info" data-i18n-aria-label="info.title"></aside>
+  </div>
+
+  <div id="scrim" class="scrim" hidden></div>
+  <div id="toasts" class="toasts" role="status"></div>
+  <button id="change-pill" class="change-pill" type="button" hidden>
+    <svg class="pill-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+    <span id="change-pill-text"></span>
+  </button>
+  <div id="announce" class="announce" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <template id="tree-head-template">
+    <div class="tree-head">
+      <span class="tree-head-title"></span>
+      <button class="tree-tool" type="button" data-action="collapse">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>
+      </button>
+      <button class="tree-tool" type="button" data-action="reveal">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/><circle cx="12" cy="12" r="1.2"/></svg>
+      </button>
+    </div>
+  </template>
+
+  <template id="embed-icon-template">
+    <svg class="embed-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+  </template>
+
+  <template id="lock-icon-template">
+    <svg class="lock-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+  </template>
+
+  <template id="browse-icons-template">
+    <svg data-icon="folder" class="browse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    <svg data-icon="vault" class="browse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l8.5 9L12 21l-8.5-9z"/><path d="M3.5 12h17"/></svg>
+    <svg data-icon="chevron" class="browse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>
+    <svg data-icon="check" class="browse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+  </template>
+
+  <div id="palette" class="palette" hidden>
+    <div id="palette-scrim" class="palette-scrim"></div>
+    <div class="palette-box" role="dialog" aria-modal="true" data-i18n-aria-label="quick.title">
+      <div class="palette-bar">
+        <svg class="palette-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="palette-input" class="palette-input" type="text" role="combobox" aria-expanded="false" aria-controls="palette-list" aria-autocomplete="list" aria-haspopup="listbox" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" data-i18n-aria-label="quick.label">
+        <button id="palette-close" class="icon-btn palette-close" type="button" data-i18n-title="quick.close" data-i18n-aria-label="quick.close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <p id="palette-head" class="palette-head" role="status"></p>
+      <ul id="palette-list" class="palette-list" role="listbox" aria-labelledby="palette-head"></ul>
+      <p id="palette-note" class="palette-note" hidden></p>
+    </div>
+  </div>
+
+  <div id="browse" class="browse" hidden>
+    <div id="browse-scrim" class="browse-scrim"></div>
+    <div id="browse-box" class="browse-box" role="dialog" aria-modal="true" aria-labelledby="browse-title" tabindex="-1">
+      <div class="browse-bar">
+        <h2 id="browse-title" class="browse-title" data-i18n="browse.title"></h2>
+        <button id="browse-close" class="icon-btn browse-close" type="button" data-i18n-title="browse.close" data-i18n-aria-label="browse.close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <section id="browse-found" class="browse-found" aria-labelledby="browse-found-head" hidden>
+        <h3 id="browse-found-head" class="browse-head" data-i18n="browse.found"></h3>
+        <p id="browse-found-status" class="browse-note" role="status"></p>
+        <ul id="browse-found-list" class="browse-found-list"></ul>
+        <button id="browse-found-more" class="more-btn browse-found-more" type="button" hidden></button>
+        <p id="browse-found-partial" class="browse-note" hidden></p>
+      </section>
+      <div class="browse-folders">
+        <div class="browse-nav">
+          <nav class="browse-where" data-i18n-aria-label="browse.path">
+            <ol id="browse-crumbs" class="browse-crumbs"></ol>
+          </nav>
+          <button id="browse-up" class="browse-up" type="button" data-i18n-aria-label="browse.up.named" data-i18n-title="browse.up.named">
+            <svg class="browse-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+            <span data-i18n="browse.up"></span>
+          </button>
+        </div>
+        <div class="browse-tools">
+          <p id="browse-status" class="browse-status" role="status"></p>
+          <label class="browse-toggle">
+            <input id="browse-hidden" type="checkbox">
+            <span data-i18n="browse.hidden"></span>
+          </label>
+        </div>
+        <ul id="browse-list" class="browse-list" role="listbox" tabindex="0" data-i18n-aria-label="browse.list"></ul>
+        <p id="browse-note" class="browse-note" hidden></p>
+      </div>
+      <div class="browse-problem">
+        <p id="browse-error" class="browse-error" role="alert"></p>
+        <button id="browse-retry" class="button is-quiet browse-retry" type="button" data-i18n="error.retry" hidden></button>
+      </div>
+      <div class="browse-foot">
+        <p id="browse-why" class="browse-why"></p>
+        <div class="browse-actions">
+          <button id="browse-cancel" class="button is-quiet" type="button" data-i18n="browse.cancel"></button>
+          <button id="browse-add" class="button" type="button" aria-describedby="browse-why" disabled></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
