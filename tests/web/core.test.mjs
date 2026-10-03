@@ -3845,6 +3845,13 @@ describe('browseListing and browseFound (the answers of the picker)', () => {
     assert.deepEqual(core.browseFound({ folders: [] }), { folders: [], complete: true });
     assert.deepEqual(core.browseFound(undefined), { folders: [], complete: true });
   });
+
+  it('listedLast puts the folders a source shows already at the end, each part in the order it came in, and leaves the answer as it was', () => {
+    const folders = [{ path: '/a', listed: true }, { path: '/b', listed: false }, { path: '/c', listed: true }, { path: '/d', listed: false }];
+    assert.deepEqual(core.listedLast(folders).map((folder) => folder.path), ['/b', '/d', '/a', '/c']);
+    assert.deepEqual(folders.map((folder) => folder.path), ['/a', '/b', '/c', '/d']);
+    assert.deepEqual(core.listedLast([]), []);
+  });
 });
 
 describe('browseCrumbs (the path of the folder, one place to go to each)', () => {

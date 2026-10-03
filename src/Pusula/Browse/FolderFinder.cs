@@ -69,7 +69,8 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
         Walk(home, budget, found, cancellationToken);
 
         // Sorted by name (the Turkish alphabet, ignoring case) and, for the same name, by display; counted in that order, which is the way a page shows
-        // them: what the budget of the counting does not reach is what is further down.
+        // them (but for the folders a source shows already, which it moves to the end): what the budget of the counting does not reach is what is
+        // further down.
         var counting = new ScanBudget(limits.CountEntries, limits.CountTime);
         BrowseFolder[] folders =
         [

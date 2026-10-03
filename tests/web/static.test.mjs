@@ -3104,6 +3104,16 @@ describe('the folder picker (the "Choose a folder..." window of the sources page
     assert.match(touch, /\.browse-close\s*\{\s*width: var\(--touch\);\s*height: var\(--touch\);/);
     assert.match(ownRule('.browse-found') ?? '', /flex: 0 1 auto/);
     assert.match(ownRule('.browse-folders') ?? '', /min-height: 9rem/);
+    assert.match(ownRule('.browse-folders') ?? '', /flex: 1 1 0;/, 'a long list of folders takes the room the found folders leave, not theirs');
+  });
+
+  it('the found folders that can be added come first, and where they scroll their bottom edge fades while there are more below it', () => {
+    assert.match(functionSource('loadFound'), /folders: listedLast\(found\.folders\)/);
+    assert.match(ownRule('.browse-found > .browse-found-list.is-cut') ?? '', /mask-image: linear-gradient\(to bottom, #000 calc\(100% - 28px\), transparent\)/);
+    assert.match(ownRule('.browse-found > .browse-found-list') ?? '', /scroll-padding-bottom: 28px/, 'the keyboard brings a button in clear of the fade');
+    assert.match(functionSource('syncFoundCut'), /classList\.toggle\('is-cut', list\.scrollTop \+ list\.clientHeight < list\.scrollHeight - 1\)/);
+    assert.match(functionSource('scheduleFit'), /syncFoundCut\(\);/, 'measured again when the window changes size and when rows are drawn');
+    assert.match(code('app.js'), /refs\.browseFoundList\.addEventListener\('scroll', syncFoundCut, \{ passive: true \}\)/);
   });
 });
 

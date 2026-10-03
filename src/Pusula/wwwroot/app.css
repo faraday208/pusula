@@ -3562,7 +3562,15 @@ a.source-body:focus-visible::after {
   padding: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  scroll-padding-bottom: 28px; /* a button the keyboard comes to is brought in clear of the faded edge (.is-cut) */
   list-style: none;
+}
+
+/* Where the found folders scroll (a short window, or all of them shown), their bottom edge fades while there are more below it, as the beginning of
+   a cut path does (app.js: syncFoundCut). */
+.browse-found > .browse-found-list.is-cut {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
 }
 
 /* One row in one line where there is room: its mark, its name, its path (which gives way first), what it is, and the button (or that it is in the list). */
@@ -3678,7 +3686,7 @@ a.source-body:focus-visible::after {
 
 .browse-folders {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 0; /* the room the found folders leave: from a basis of its own height, a long list made them pay for it (the shortfall goes by size) and cut them to a row */
   flex-direction: column;
   min-height: 9rem; /* the path, the switch and a row and a half: where the window is short it is the found folders that give way */
 }

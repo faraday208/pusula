@@ -11,7 +11,7 @@ import {
   embedAssetKind, embedName, enumName, fileEnds, fileHash, filesWithTag, findClaudePaths, findInlineTags, findMarkdownLink,
   findWikiLink, flattenFiles, folderHolds, folderPaths, formatDelta, formatPercent, formatTokens, frontmatterProblem, highlightParts,
   homeSlug, isApplePlatform, isDirectory, isNoteProfile, isRelativePath, issueSection, issueStartsOpen,
-  linkHref, linkKey, listboxIndex, loadedTokens, loadFailure, LOAD_MODES, loadModesByLayer, mergeLinks, noteFront, noteName, opensQuickOpen,
+  linkHref, linkKey, listboxIndex, listedLast, loadedTokens, loadFailure, LOAD_MODES, loadModesByLayer, mergeLinks, noteFront, noteName, opensQuickOpen,
   orderProjectFolders, overviewDiff, overviewHash, pageIsAtAddress, parseBrowseState, parseCalloutMarker, parseRecent, parseRoute,
   parseUiState, pathHeadCut, percent, pillTarget, positiveLine, profileName, projectFolders, projectLabels, propertiesWithoutTags,
   pushRecent, quickEntries, quickSearch, readableWikilinks, recentJson, recentResults, RELEASES_URL, REMOTE_EDIT_FLAG, resolveRoute, savedPosition,
@@ -433,7 +433,14 @@ function scheduleFit() {
     fitPathHeads(refs.content);
     fitPathHeads(refs.info);
     fitPathHeads(refs.browse);
+    syncFoundCut();
   });
+}
+
+/** The found folders' bottom edge fades (`.is-cut`) while there are rows below it: once they are drawn, scrolled, or the window changes size. */
+function syncFoundCut() {
+  const list = refs.browseFoundList;
+  list.classList.toggle('is-cut', list.scrollTop + list.clientHeight < list.scrollHeight - 1);
 }
 
 /** Compares two /api/file responses ignoring the index version. */
@@ -3079,7 +3086,7 @@ async function loadFound() {
     return;
   }
   if (seq !== foundSeq) return;
-  state.browse.found = { status: 'ready', folders: found.folders, complete: found.complete, all: false };
+  state.browse.found = { status: 'ready', folders: listedLast(found.folders), complete: found.complete, all: false };
   renderBrowseFound();
 }
 
@@ -3473,6 +3480,7 @@ function bindBrowseEvents() {
     const button = event.target instanceof Element ? event.target.closest('.browse-found-add') : null;
     if (button) addFromBrowse(button.dataset.path, { row: true });
   });
+  refs.browseFoundList.addEventListener('scroll', syncFoundCut, { passive: true });
   refs.browseFoundMore.addEventListener('click', () => {
     state.browse.found.all = !state.browse.found.all;
     renderBrowseFound();

@@ -1656,6 +1656,11 @@ export function browseFound(data) {
   return { folders: browseFolders(data?.folders), complete: data?.complete !== false };
 }
 
+/** The found folders as the picker shows them: those a source shows already go to the end (there is nothing to do with them), each part in the server's order. */
+export function listedLast(folders) {
+  return [...folders.filter((folder) => !folder.listed), ...folders.filter((folder) => folder.listed)];
+}
+
 /** A path without its separators at the end (`/a/b/` is `/a/b`); the root stays as it is. */
 function trimSeparators(path) {
   const text = String(path ?? '');
