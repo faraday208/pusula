@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { RELEASES_URL } from '../../src/Pusula/wwwroot/js/core.js';
 
 const wwwroot = fileURLToPath(new URL('../../src/Pusula/wwwroot/', import.meta.url));
-const read = (path) => readFileSync(`${wwwroot}${path}`, 'utf8');
+// A Windows checkout may end the lines with CRLF; the checks below are written for LF.
+const read = (path) => readFileSync(`${wwwroot}${path}`, 'utf8').replace(/\r\n/g, '\n');
 
 const html = read('index.html');
 const css = read('app.css');

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Pusula.Indexing;
 using Pusula.IntegrationTests.Support;
 using Pusula.Startup;
@@ -8,6 +9,8 @@ namespace Pusula.IntegrationTests.Startup;
 
 public sealed class StartupTests
 {
+    private static string Json(string path) => JsonSerializer.Serialize(path);
+
     [Fact]
     public void Start_RootDoesNotExist_FailsAndNamesTheFolder()
     {
@@ -172,7 +175,7 @@ public sealed class StartupTests
         temp.Write("notes/Note.md", "# Note\n");
         string file = temp.Write(
             "sources.json",
-            $$"""{ "sources": [ { "path": "{{temp.Resolve("missing")}}", "id": "gone" }, { "path": "{{temp.Resolve("notes")}}", "id": "notes" } ] }""");
+            $$"""{ "sources": [ { "path": {{Json(temp.Resolve("missing"))}}, "id": "gone" }, { "path": {{Json(temp.Resolve("notes"))}}, "id": "notes" } ] }""");
         await using PusulaFactory factory = PusulaFactory.FromSourcesFile(file);
         using HttpClient client = factory.CreateClient();
 

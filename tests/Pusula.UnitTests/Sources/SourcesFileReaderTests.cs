@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Pusula.Indexing;
 using Pusula.Sources;
 using Pusula.UnitTests.Support;
@@ -9,6 +10,12 @@ namespace Pusula.UnitTests.Sources;
 
 public sealed class SourcesFileReaderTests
 {
+    // The folder of the file, as a full path of this platform: "/base" has no drive in front of it on Windows and is not one.
+    private static readonly string Base = Path.GetFullPath("/base");
+
+    // A path as JSON text, with the quotes: the backslashes of a Windows path are escaped.
+    private static string Json(string path) => JsonSerializer.Serialize(path);
+
     private static IReadOnlyList<SourceDefinition> Parse(string json, string baseDirectory, string home = "/home/test")
     {
         SourcesFileReader.TryParse(json, baseDirectory, home, out IReadOnlyList<SourceDefinition>? sources, out string? reason)
@@ -18,7 +25,7 @@ public sealed class SourcesFileReaderTests
 
     private static string Fail(string json, string home = "/home/test")
     {
-        SourcesFileReader.TryParse(json, "/base", home, out IReadOnlyList<SourceDefinition>? sources, out string? reason).ShouldBeFalse();
+        SourcesFileReader.TryParse(json, Base, home, out IReadOnlyList<SourceDefinition>? sources, out string? reason).ShouldBeFalse();
         sources.ShouldBeNull();
         return reason.ShouldNotBeNull();
     }
@@ -29,7 +36,7 @@ public sealed class SourcesFileReaderTests
         using var temp = new TempDirectory();
         string folder = temp.CreateDirectory("anywhere");
 
-        SourceDefinition source = Parse($$"""{ "sources": [ { "id": "my-claude", "name": "Benim Claude", "path": "{{folder}}", "profile": "claude" } ] }""", temp.Path).Single();
+        SourceDefinition source = Parse($$"""{ "sources": [ { "id": "my-claude", "name": "Benim Claude", "path": {{Json(folder)}}, "profile": "claude" } ] }""", temp.Path).Single();
 
         source.ShouldBe(new SourceDefinition("my-claude", "Benim Claude", folder, SourceProfile.Claude, IsRequired: false));
     }
@@ -41,7 +48,7 @@ public sealed class SourcesFileReaderTests
         string vault = temp.CreateDirectory("Not Defteri");
         temp.CreateDirectory("Not Defteri/.obsidian");
 
-        SourceDefinition source = Parse($$"""{ "sources": [ { "path": "{{vault}}" } ] }""", temp.Path).Single();
+        SourceDefinition source = Parse($$"""{ "sources": [ { "path": {{Json(vault)}} } ] }""", temp.Path).Single();
 
         source.Name.ShouldBe("Not Defteri");
         source.Id.ShouldBe("not-defteri");
@@ -54,7 +61,7 @@ public sealed class SourcesFileReaderTests
     {
         using var home = new TempDirectory();
 
-        SourceDefinition source = Parse("""{ "sources": [ { "path": "~/Documents/vault" } ] }""", "/base", home.Path).Single();
+        SourceDefinition source = Parse("""{ "sources": [ { "path": "~/Documents/vault" } ] }""", Base, home.Path).Single();
 
         source.Path.ShouldBe(Path.Join(home.Path, "Documents", "vault"));
     }
@@ -80,7 +87,7 @@ public sealed class SourcesFileReaderTests
             }
             """;
 
-        Parse(json, "/base").Select(source => source.Id).ShouldBe(["one", "two"]);
+        Parse(json, Base).Select(source => source.Id).ShouldBe(["one", "two"]);
     }
 
     [Fact]
@@ -95,7 +102,7 @@ public sealed class SourcesFileReaderTests
             ] }
             """;
 
-        Parse(json, "/base").Select(source => source.Id).ShouldBe(["notes", "notes-3", "notes-2", "notes-4"]);
+        Parse(json, Base).Select(source => source.Id).ShouldBe(["notes", "notes-3", "notes-2", "notes-4"]);
     }
 
     [Theory]
@@ -103,7 +110,7 @@ public sealed class SourcesFileReaderTests
     [InlineData("Markdown", SourceProfile.Markdown)]
     [InlineData("claude", SourceProfile.Claude)]
     public void TryParse_Profile_IsReadIgnoringCase(string text, SourceProfile expected) =>
-        Parse($$"""{ "sources": [ { "path": "/a/x", "profile": "{{text}}" } ] }""", "/base").Single().Profile.ShouldBe(expected);
+        Parse($$"""{ "sources": [ { "path": "/a/x", "profile": "{{text}}" } ] }""", Base).Single().Profile.ShouldBe(expected);
 
     [Fact]
     public void TryParse_ProfileAuto_IsDecidedByTheFolder()
@@ -113,14 +120,14 @@ public sealed class SourcesFileReaderTests
         temp.Write("a/config/CLAUDE.md", "x");
         temp.CreateDirectory("a/config/skills");
 
-        Parse($$"""{ "sources": [ { "path": "{{claude}}", "profile": "auto" }, { "path": "{{temp.Path}}" } ] }""", "/base")
+        Parse($$"""{ "sources": [ { "path": {{Json(claude)}}, "profile": "auto" }, { "path": {{Json(temp.Path)}} } ] }""", Base)
             .Select(source => source.Profile).ShouldBe([SourceProfile.Claude, SourceProfile.Markdown]);
     }
 
     [Fact]
     public void TryParse_FolderThatDoesNotExist_IsNotAnError()
     {
-        SourceDefinition source = Parse("""{ "sources": [ { "path": "/does/not/exist/anywhere", "name": "Kayıp" } ] }""", "/base").Single();
+        SourceDefinition source = Parse("""{ "sources": [ { "path": "/does/not/exist/anywhere", "name": "Kayıp" } ] }""", Base).Single();
 
         source.Path.ShouldBe(Path.GetFullPath("/does/not/exist/anywhere"));
         source.Id.ShouldBe("kayip");
@@ -152,7 +159,7 @@ public sealed class SourcesFileReaderTests
     [InlineData("{ // nothing to show\n  \"sources\": [ ],\n}")]
     [InlineData("""{ "sources": [], "other": 1 }""")]
     public void TryParse_EmptyList_IsAListWithNoSources(string json) =>
-        Parse(json, "/base").ShouldBeEmpty();
+        Parse(json, Base).ShouldBeEmpty();
 
     // A character that no path has is a file that cannot be used (one line, never an exception): the null character
     // everywhere, and on Windows the others that Path.GetInvalidPathChars lists. The JSON escapes them.
@@ -164,6 +171,12 @@ public sealed class SourcesFileReaderTests
             string escaped = "\\u" + ((int)invalid).ToString("x4", CultureInfo.InvariantCulture);
             foreach (string path in new[] { "/a/b" + escaped + "c", escaped + "/a", "/a" + escaped, "relative" + escaped, "~/x" + escaped, escaped })
             {
+                // Nothing but white space (a tab or a line break, which are characters that no path has on Windows) is no path at all: "path" is required.
+                if (path == escaped && char.IsWhiteSpace(invalid))
+                {
+                    continue;
+                }
+
                 string reason = Fail("{ \"sources\": [ { \"path\": \"" + path + "\" } ] }");
 
                 reason.ShouldBe("source 1: \"path\" has a character that no path has");
@@ -190,7 +203,7 @@ public sealed class SourcesFileReaderTests
                 string path = property == "path" ? value : "/a/x";
                 string json = "{ \"sources\": [ { \"path\": \"" + path + "\"" + (property == "path" ? string.Empty : ", \"" + property + "\": \"" + value + "\"") + " } ] }";
 
-                bool usable = SourcesFileReader.TryParse(json, "/base", "/home/test", out IReadOnlyList<SourceDefinition>? sources, out string? reason);
+                bool usable = SourcesFileReader.TryParse(json, Base, "/home/test", out IReadOnlyList<SourceDefinition>? sources, out string? reason);
 
                 if (usable)
                 {

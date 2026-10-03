@@ -284,14 +284,16 @@ public sealed class FolderFinderTests
         FoundFolders found = Finder(temp, drives).Find(TestContext.Current.CancellationToken);
 
         // Notes and notes are the same name; the display tells them apart: "/" sorts before "~", then the folders in the home directory by their paths.
-        found.Folders.Select(folder => folder.Display).ShouldBe(
+        // A path on Windows starts with the letter of its drive instead, which sorts after "~".
+        string drive = temp.Resolve("drive/Notes");
+        string[] inTheHome =
         [
-            temp.Resolve("drive/Notes"),
             "~/a/Notes".Replace('/', Path.DirectorySeparatorChar),
             "~/b/Notes".Replace('/', Path.DirectorySeparatorChar),
             "~/c/notes".Replace('/', Path.DirectorySeparatorChar),
-            "~/Other".Replace('/', Path.DirectorySeparatorChar),
-        ]);
+        ];
+        string[] sameName = OperatingSystem.IsWindows() ? [.. inTheHome, drive] : [drive, .. inTheHome];
+        found.Folders.Select(folder => folder.Display).ShouldBe([.. sameName, "~/Other".Replace('/', Path.DirectorySeparatorChar)]);
     }
 
     [Fact]

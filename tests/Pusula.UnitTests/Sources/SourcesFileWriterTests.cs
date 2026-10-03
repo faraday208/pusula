@@ -51,7 +51,9 @@ public sealed class SourcesFileWriterTests
         string file = temp.CreateDirectory("sources.json");
         temp.Write("sources.json/keep.txt", "x");
 
-        Should.Throw<IOException>(() => SourcesFileWriter.Write(file, "text"));
+        // A folder in the place of the file is refused with access denied (an UnauthorizedAccessException) on Windows, with an IOException elsewhere.
+        Exception thrown = Should.Throw<Exception>(() => SourcesFileWriter.Write(file, "text"));
+        thrown.ShouldBeAssignableTo(OperatingSystem.IsWindows() ? typeof(UnauthorizedAccessException) : typeof(IOException));
 
         Directory.GetFileSystemEntries(temp.Path).ShouldBe([file]);
         File.ReadAllText(Path.Join(file, "keep.txt")).ShouldBe("x");

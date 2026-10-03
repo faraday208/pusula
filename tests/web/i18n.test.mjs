@@ -10,8 +10,9 @@ import * as i18n from '../../src/Pusula/wwwroot/js/i18n.js';
 import * as core from '../../src/Pusula/wwwroot/js/core.js';
 
 const wwwroot = fileURLToPath(new URL('../../src/Pusula/wwwroot/', import.meta.url));
-const appSource = readFileSync(`${wwwroot}js/app.js`, 'utf8');
-const htmlSource = readFileSync(`${wwwroot}index.html`, 'utf8');
+// A Windows checkout may end the lines with CRLF; the checks below are written for LF.
+const appSource = readFileSync(`${wwwroot}js/app.js`, 'utf8').replace(/\r\n/g, '\n');
+const htmlSource = readFileSync(`${wwwroot}index.html`, 'utf8').replace(/\r\n/g, '\n');
 
 const tr = i18n.DICT.tr;
 const en = i18n.DICT.en;

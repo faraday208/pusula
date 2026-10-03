@@ -125,7 +125,9 @@ public sealed class BrowsePathsTests
     {
         using var temp = new TempDirectory();
         UserDirectories directories = HomeOf(temp);
-        string spaced = temp.CreateDirectory("home/Notes ");
+
+        // Windows does not keep a space at the end of a folder name: there the folder is called Notes, and only the space in front is left to check.
+        string spaced = temp.CreateDirectory(OperatingSystem.IsWindows() ? "home/Notes" : "home/Notes ");
 
         Resolve(spaced, directories).ShouldBe(spaced);
         Reject(" " + spaced, directories).ShouldBe(BrowseError.PathNotAbsolute);
@@ -192,7 +194,7 @@ public sealed class BrowsePathsTests
     [Fact]
     public void TryResolve_TildeWhereTheHomeDirectoryHasACharacterNoPathHas_IsFolderNotFoundAndNeverAnError()
     {
-        var directories = new UserDirectories("/home/user\0", string.Empty);
+        var directories = new UserDirectories(Path.GetFullPath("/home/user") + "\0", string.Empty);
 
         Reject("~/notes", directories).ShouldBe(BrowseError.FolderNotFound);
         Reject("~", directories).ShouldBe(BrowseError.FolderNotFound);
@@ -238,7 +240,7 @@ public sealed class BrowsePathsTests
     [InlineData("/home/test", "/home")]
     [InlineData("/home", "/")]
     public void Parent_Folder_IsTheFolderAboveIt(string fullPath, string expected) =>
-        BrowsePaths.Parent(fullPath).ShouldBe(expected);
+        BrowsePaths.Parent(Path.GetFullPath(fullPath)).ShouldBe(Path.GetFullPath(expected));
 
     [Fact]
     public void Parent_RootOfTheFileSystem_IsNull() =>

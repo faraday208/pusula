@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Xunit;
 
 namespace Pusula.IntegrationTests.Support;
@@ -12,6 +13,9 @@ public sealed class SourcesFixture : IAsyncLifetime
 
     private readonly TempDirectory _sandbox = new();
     private PusulaFactory? _factory;
+
+    // A path as JSON text, with the quotes: the backslashes of a Windows path are escaped.
+    private static string Json(string path) => JsonSerializer.Serialize(path);
 
     public HttpClient Client { get; private set; } = null!;
 
@@ -44,9 +48,9 @@ public sealed class SourcesFixture : IAsyncLifetime
             {
               // made-up sources
               "sources": [
-                { "id": "claude", "name": "Claude Config", "path": "{{ClaudeFolder}}", "profile": "auto" },
-                { "name": "Not Defteri", "path": "{{VaultFolder}}" },
-                { "path": "{{MissingFolder}}", "name": "Kayıp" },
+                { "id": "claude", "name": "Claude Config", "path": {{Json(ClaudeFolder)}}, "profile": "auto" },
+                { "name": "Not Defteri", "path": {{Json(VaultFolder)}} },
+                { "path": {{Json(MissingFolder)}}, "name": "Kayıp" },
               ]
             }
             """);

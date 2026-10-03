@@ -699,8 +699,9 @@ public sealed class IndexHostTests : IDisposable
         IndexHost host = await StartHostAsync();
 
         Directory.Delete(_root.Path, recursive: true);
-        await WaitUntilAsync(() => _hostLog.Entries.Any(entry => entry.Level >= LogLevel.Warning), "a warning or error about the deleted folder");
-        _hostLog.Entries.ShouldContain(entry => entry.Level == LogLevel.Error && entry.Message.Contains("does not exist", StringComparison.Ordinal));
+
+        // Windows reports the deleted folder at once, as a watcher error (a warning); the rebuild that fails, an error, follows after the debounce delay.
+        await WaitUntilAsync(() => _hostLog.Entries.Any(entry => entry.Level == LogLevel.Error && entry.Message.Contains("does not exist", StringComparison.Ordinal)), "the failed rebuild to be logged");
 
         host.Current.Version.ShouldBe(1);
         host.Current.Files.Keys.ShouldBe(["rules/a.md"]);

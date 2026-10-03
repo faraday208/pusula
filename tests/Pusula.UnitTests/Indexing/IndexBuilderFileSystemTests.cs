@@ -57,9 +57,10 @@ public sealed class IndexBuilderFileSystemTests
 
         Keys(index).ShouldBe(["a.md", "rules/r.md", "skills/back/r.md", "skills/s/SKILL.md"]);
 
-        // A loop is a normal setup, not a problem: it is noted at debug level only.
+        // A loop is a normal setup, not a problem: it is noted at debug level only. A link to itself is no loop back to a folder that
+        // is being scanned but a link that leads nowhere: Linux does not even take it for a folder, Windows cannot resolve it and warns.
         logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Debug && entry.Message.Contains("rules/loop", StringComparison.Ordinal));
-        logger.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning);
+        logger.Entries.ShouldNotContain(entry => entry.Level >= LogLevel.Warning && !(OperatingSystem.IsWindows() && entry.Message.StartsWith("Skipped self:", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -86,15 +87,27 @@ public sealed class IndexBuilderFileSystemTests
 
         ConfigIndex index = Build(root);
 
-        Keys(index).ShouldBe(
-        [
-            "skills-link/SKILL.md",
-            "skills-link/ref.md",
-            "skills/one/SKILL.md",
-            "skills/one/ref.md",
-            "skills/two/SKILL.md",
-            "skills/two/ref.md",
-        ]);
+        // The keys are in the order in which the platform compares paths: SKILL.md comes before ref.md where an uppercase letter sorts first, after it on Windows, where case is ignored.
+        string[] expected = OperatingSystem.IsWindows()
+            ?
+            [
+                "skills-link/ref.md",
+                "skills-link/SKILL.md",
+                "skills/one/ref.md",
+                "skills/one/SKILL.md",
+                "skills/two/ref.md",
+                "skills/two/SKILL.md",
+            ]
+            :
+            [
+                "skills-link/SKILL.md",
+                "skills-link/ref.md",
+                "skills/one/SKILL.md",
+                "skills/one/ref.md",
+                "skills/two/SKILL.md",
+                "skills/two/ref.md",
+            ];
+        Keys(index).ShouldBe(expected);
         index.Files["skills/one/SKILL.md"].Layer.ShouldBe(Layer.Skill);
         index.Files["skills/two/ref.md"].Layer.ShouldBe(Layer.SkillResource);
         index.Files["skills-link/SKILL.md"].Layer.ShouldBe(Layer.Other);

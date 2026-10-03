@@ -253,6 +253,12 @@ public sealed class SourceRequestValidatorTests
                 "  " + invalid + "  ",
             })
             {
+                // The request is trimmed first: a tab or a line break (characters that no path has on Windows) at either end of it is not part of the path.
+                if (!path.Trim().Contains(invalid))
+                {
+                    continue;
+                }
+
                 Reject(Request(path), home.Path).ShouldBe(EditError.FolderNotFound);
             }
         }

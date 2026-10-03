@@ -1,0 +1,2 @@
+# The vendored libraries stay byte for byte as published (vendor/README.md records their hashes): no line-ending conversion.
+src/Pusula/wwwroot/vendor/** -text
