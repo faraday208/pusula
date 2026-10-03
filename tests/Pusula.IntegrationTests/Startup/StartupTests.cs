@@ -87,6 +87,32 @@ public sealed class StartupTests
         capturedError.ToString().ShouldBe($"pusula: root folder not found: {missing}{Environment.NewLine}");
     }
 
+    // A folder written after the options would otherwise be lost without a word, and the server would show the sources of the
+    // list instead: the entry point refuses it before any host is built (a running host would never return), with one line on
+    // the error stream and exit code 1.
+    [Fact]
+    public void Main_FolderAfterTheOptions_WritesOneErrorLineAndReturnsExitCode1()
+    {
+        using var temp = new TempDirectory();
+        string folder = temp.Path;
+        TextWriter originalError = Console.Error;
+        using var capturedError = new StringWriter();
+        object? exitCode;
+
+        Console.SetError(capturedError);
+        try
+        {
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--urls", "http://127.0.0.1:0", folder }]);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        exitCode.ShouldBe(1);
+        capturedError.ToString().ShouldBe($"pusula: folders go before the options (pusula [folder ...] [options]): {folder}{Environment.NewLine}");
+    }
+
     // The same entry point, asked for the version. It is answered before anything else: the folder that is named first does not
     // exist, and it is not looked at; no host is built (a running host would never return). One line on the standard output, exit
     // code 0, nothing on the error stream.

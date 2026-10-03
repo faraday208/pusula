@@ -262,6 +262,44 @@ public sealed class CommandLineTests
         CommandLine.Parse([file]).FindRootError(Home, Directory.Exists).ShouldBe("pusula: root folder not found: " + file);
     }
 
+    private const string MisplacedFolder = "pusula: folders go before the options (pusula [folder ...] [options]): ";
+
+    [Fact]
+    public void FindMisplacedFolderError_FolderAfterAnOptionAndItsValue_IsReported() =>
+        CommandLine.Parse(["--urls", "http://localhost:1", "/notes"]).FindMisplacedFolderError().ShouldBe(MisplacedFolder + "/notes");
+
+    [Fact]
+    public void FindMisplacedFolderError_FolderAfterAnOptionWithItsValueAfterAnEqualsSign_IsReported() =>
+        CommandLine.Parse(["--urls=http://localhost:1", "~/notes"]).FindMisplacedFolderError().ShouldBe(MisplacedFolder + "~/notes");
+
+    [Fact]
+    public void FindMisplacedFolderError_FolderBetweenOptions_IsReported() =>
+        CommandLine.Parse(["--Pusula:AllowRemoteEdit", "true", "notes", "--urls", "http://localhost:1"]).FindMisplacedFolderError().ShouldBe(MisplacedFolder + "notes");
+
+    [Fact]
+    public void FindMisplacedFolderError_NoArguments_IsNull() =>
+        CommandLine.Parse([]).FindMisplacedFolderError().ShouldBeNull();
+
+    [Fact]
+    public void FindMisplacedFolderError_FoldersOnly_IsNull() =>
+        CommandLine.Parse(["/a", "/b"]).FindMisplacedFolderError().ShouldBeNull();
+
+    [Fact]
+    public void FindMisplacedFolderError_FoldersFirstThenOptionsWithTheirValues_IsNull() =>
+        CommandLine.Parse(["/a", "--urls", "http://localhost:1", "--Pusula:AllowedHosts", "a;b"]).FindMisplacedFolderError().ShouldBeNull();
+
+    [Fact]
+    public void FindMisplacedFolderError_SettingsWrittenAsKeyEqualsValue_IsNull() =>
+        CommandLine.Parse(["--urls=http://localhost:1", "Pusula:AllowRemoteEdit=true"]).FindMisplacedFolderError().ShouldBeNull();
+
+    [Fact]
+    public void FindMisplacedFolderError_VersionOptionAlone_IsNull() =>
+        CommandLine.Parse(["--version"]).FindMisplacedFolderError().ShouldBeNull();
+
+    [Fact]
+    public void FindMisplacedFolderError_EmptyArgumentAfterTheOptions_IsNotAFolder() =>
+        CommandLine.Parse(["--urls", "http://localhost:1", ""]).FindMisplacedFolderError().ShouldBeNull();
+
     [Fact]
     public void Parse_NullArguments_Throws() =>
         Should.Throw<ArgumentNullException>(() => CommandLine.Parse(null!));

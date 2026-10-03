@@ -65,7 +65,8 @@ JSON, where a single backslash starts an escape.
   you browse folders. Changes are written to `sources.json`; editing the file by hand works too, without a restart.
 - **Profiles** are detected automatically: a folder with `.obsidian/` is an Obsidian vault, a Claude Code
   configuration folder is shown with load layers and tokens, anything else as plain Markdown.
-- **Folders on the command line** (`dotnet run --project src/Pusula -- <folder> [<folder>…]`, absolute paths) replace the list.
+- **Folders on the command line** (`dotnet run --project src/Pusula -- <folder> [<folder>…]`, absolute paths, before any option such as `--urls`)
+  replace the list.
 
 ## Remote access
 

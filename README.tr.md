@@ -65,7 +65,8 @@ ters bölü bir kaçış dizisi başlatır.
   gezinmeni sağlar. Değişiklik `sources.json`'a yazılır; dosyayı elle düzenlemek de olur, yeniden başlatmak gerekmez.
 - **Profil** kendiliğinden anlaşılır: `.obsidian/` içeren klasör Obsidian kasasıdır, Claude Code yapılandırma
   klasörü katmanları ve token'larıyla gösterilir, gerisi düz Markdown olarak.
-- **Komut satırındaki klasörler** (`dotnet run --project src/Pusula -- <klasör> [<klasör>…]`, tam yolla) listenin yerine geçer.
+- **Komut satırındaki klasörler** (`dotnet run --project src/Pusula -- <klasör> [<klasör>…]`, tam yolla, `--urls` gibi seçeneklerden
+  önce) listenin yerine geçer.
 
 ## Uzaktan erişim
 

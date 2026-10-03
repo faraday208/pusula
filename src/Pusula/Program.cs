@@ -20,6 +20,15 @@ if (commandLine.WantsVersion)
     return 0;
 }
 
+// A folder typed after the options would be lost without a word (the host takes it for an option, or for nothing) and the
+// server would show the sources of the list instead: a usage error, one line and exit code 1.
+string? misplacedFolder = commandLine.FindMisplacedFolderError();
+if (misplacedFolder is not null)
+{
+    Console.Error.WriteLine(misplacedFolder);
+    return 1;
+}
+
 // A folder typed on the command line that does not exist is a usage error: one line and exit code 1, no stack trace.
 string? rootError = commandLine.FindRootError(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Directory.Exists);
 if (rootError is not null)

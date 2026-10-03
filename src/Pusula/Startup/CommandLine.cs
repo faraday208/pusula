@@ -39,6 +39,32 @@ internal sealed record CommandLine(string[] Roots, string[] HostArguments)
     }
 
     /// <summary>
+    /// Finds a folder that was written after the options (<c>pusula --urls http://localhost:5190 ~/notes</c>). The host
+    /// would take it for an option of its own or for nothing, and the server would start with the sources of the list
+    /// instead of the folder, without a word: someone who meant to show a demo could show their own configuration. An
+    /// argument among the host arguments is such a folder when it is not empty, does not start with <c>-</c>, has no
+    /// <c>=</c> (<c>key=value</c> is a setting of the host) and is not the value of the option before it (an option
+    /// without <c>=</c>, such as <c>--urls</c>, takes the next argument as its value).
+    /// </summary>
+    /// <returns>The line to print for the first such argument; null when there is none.</returns>
+    public string? FindMisplacedFolderError()
+    {
+        for (int index = 1; index < HostArguments.Length; index++)
+        {
+            string argument = HostArguments[index];
+            string before = HostArguments[index - 1];
+            bool isOptionOrSetting = argument.Length == 0 || argument[0] == '-' || argument.Contains('=', StringComparison.Ordinal);
+            bool isValueOfTheOptionBefore = before.Length > 0 && before[0] == '-' && !before.Contains('=', StringComparison.Ordinal);
+            if (!isOptionOrSetting && !isValueOfTheOptionBefore)
+            {
+                return $"pusula: folders go before the options (pusula [folder ...] [options]): {argument}";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Checks the folders that were given at the start of the command line, before the host is built, so that a
     /// mistyped folder ends with one line on the error stream instead of a stack trace. Only those are checked: a root
     /// that comes from the settings, the environment or <c>--Pusula:Root</c> is still reported by the index host when it starts.

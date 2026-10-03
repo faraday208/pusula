@@ -12,6 +12,11 @@ All notable changes to pusula are listed here. The format follows
   with the Hidden or System attribute, such as AppData, as hidden.
 - Built and tested on Linux, Windows and macOS on every change.
 
+### Fixed
+
+- A folder written after the options on the command line (`--urls … ~/notes`) was silently ignored and the server
+  showed the list of sources instead; pusula now stops with one line that says folders go before the options.
+
 ## [0.1.0] - 2026-10-03
 
 The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).
