@@ -1,0 +1,3 @@
+- [User role](user_role.md) — backend developer who owns the checkout service
+- [Test feedback](feedback_tests.md) — integration tests hit a real database, never mocks
+- [Checkout rewrite](project_checkout.md) — moving to a new payment provider, merge freeze mid-month

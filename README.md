@@ -1,53 +1,108 @@
+**English** · [Türkçe](README.tr.md)
+
 # pusula
 
-AI ajan config klasörlerini — öncelikle `~/.claude`, sonra Antigravity (`~/.gemini/antigravity`) —
-tarayıcıda okunur hâlde gösteren ve dosyalar arasındaki bağları çıkaran yerel araç.
+**Read your AI agent configuration and your Markdown vaults in the browser.** pusula is a small local server that
+shows a folder such as `~/.claude`, an Obsidian vault or any folder of Markdown files as a readable, linked site:
+which file links to which, what is broken, and — for Claude Code — what every session loads and what it costs.
 
-Görünüm ve kullanım Obsidian'ı örnek alır (dosya ağacı, render, backlink, grafik, arama). Veri
-modeli ve bağ çözme ise Obsidian'a göre değil, okunan klasörün kendi yapısına göre kurulur.
+It runs on your own computer and only reads. Nothing leaves your machine.
 
-**Durum:** kararlar verildi (2026-10-01), kod yok; sıradaki iş `.claude` ve Antigravity yapısını
-ölçmek. Kararlar: `CLAUDE.md` → *Kararlar*.
+![The overview of a Claude Code configuration: tokens loaded in every session, layers, broken and orphan links](docs/screenshots/overview-en.webp)
 
----
+## What you get
 
-## Neden `.claude`'u Obsidian'da açmak yetmiyor?
+- **File tree and rendered Markdown** with wikilinks, callouts, task lists, tags and embedded notes.
+- **Links and backlinks** for every file, with the line each link is on.
+- **For `~/.claude`:** when each file is loaded (every session, when a matching file is read, on demand, only when
+  you invoke it) and roughly how many tokens it adds — so you can see why every session starts heavy.
+  Memory notes are linked by the `name` in their frontmatter.
+- **Health checks:** broken links, orphan files, links to memories or notes that are not written yet, frontmatter
+  errors with the line they are on.
+- **For Obsidian vaults:** wikilinks resolved the way Obsidian does, tags, the entry note, recently changed and most
+  linked notes.
+- **Live:** pages update while Claude (or you) edit the files.
+- **Several folders:** keep a list of sources and switch between them; add one from the browser with a folder picker.
+- Two languages (English, Turkish), keyboard friendly, works on a tablet or phone.
 
-- **Bu dosyaları çoğunlukla Claude yazıyor, biz okuyoruz.** Gereken şey iyi bir editör değil;
-  iyi bir okuyucu, bağlar arasında gezinme ve Claude yazarken kendiliğinden yenilenen bir görünüm.
-- **Claude'un kendi bağ türleri var.** Yol atıfları (`~/.claude/rules/x.md`), `@import` ve
-  memory'nin frontmatter adına göre kurduğu `[[bağ]]`'lar. Obsidian bunları göremez:
-  `~/.claude`'daki 192 memory dosyasının 102'sinde frontmatter adı dosya adından farklı, bu yüzden
-  memory'deki 45 bağ Obsidian'da kırık görünüyor (ölçüm, 2026-09-30).
-- **Asıl soru "ne yükleniyor?"** Bir dosyanın her oturum mu, `paths:` eşleşince mi, skill
-  tetiklenince mi, yoksa yalnız istenince mi yüklendiği; kaç token yediği; hangi atıfın kırık,
-  hangi dosyanın yetim olduğu. Bunlar bir not uygulamasının değil, bir denetim aracının işi.
-- **Antigravity Markdown vault'u değil.** `brain/` altında Markdown dosyaları ve bunların
-  `.resolved` sürümleri, yanında protobuf (`.pb`) konuşma kayıtları var. Bir not uygulaması bu
-  düzeni anlamaz.
-- **Her cihazdan okunur.** pusula dosyaların durduğu makinede koşar; tablet ve öteki bilgisayarlar
-  özel ağ üzerinden tarayıcıyla okur, cihaza kopya gerekmez.
+![A vault note with its tags, properties, backlinks and outgoing links](docs/screenshots/note-en.webp)
 
-## Artılar
+## Quick start
 
-1. **Okumaya göre tasarlanır.** Temiz görünüm, backlink'ler, grafik, arama, canlı yenileme.
-2. **Claude'un bağlarını anlar.** Yol atıfları, `@import` ve memory adları gerçek bağ olarak görünür.
-3. **Config denetimi.** Yükleme katmanı, token payı, kırık ve yetim atıflar tek bakışta görünür;
-   "hep ekleniyor, hiç eksilmiyor" sorunu ölçülebilir olur.
-4. **Klasörü bozmaz.** Okuduğu klasöre yazmaz (karar 1).
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
-## Eksiler
+```bash
+git clone https://github.com/faraday208/pusula.git
+cd pusula
+dotnet run --project src/Pusula -- "$PWD/samples/claude" "$PWD/samples/vault"   # try it on the synthetic demo
+dotnet run --project src/Pusula -- ~/.claude                                     # your own configuration
+```
 
-1. **Yazma ve bakım bizde.** Her özellik bizim işimiz; topluluk, plugin, tema yok.
-2. **Düzenleme yok (ilk sürüm).** Bir dosyayı düzeltmek için yine bir editör gerekir.
-3. **Ağa bağımlı.** Dosyaların durduğu makine kapalıysa okunamaz.
-4. **Yığına bir araç daha.** Kendi amacına ters düşmemesi için çekirdeği küçük tutulmalı.
+Open <http://localhost:5190>. Give folders as absolute paths or starting with `~`: `dotnet run` starts the server in
+`src/Pusula`, so a relative path would be looked up there. `"$PWD/…"` works in bash, zsh and PowerShell.
 
-## Değerlendirilen alternatifler
+## Sources
 
-- **Obsidian (+ plugin):** Claude bağlarını ayrı bir görünümde çözebilirdi; ama çekirdek grafiği
-  yalnız kendi çözdüğü bağları gösterir, dosyaların cihazda bulunması gerekir ve yükleme katmanı
-  kavramı yok.
-- **Quartz:** Obsidian vault'unu web sitesine çevirir; güçlü ama Obsidian odaklı ve Claude
-  bağlarını anlamaz. Denenmedi, motor sıfırdan yazılıyor (karar 3).
-- **VS Code + Foam:** editör içinde grafik ve backlink; Claude bağlarını anlamaz, masaüstüne bağlı.
+With no folders on the command line, pusula reads its list of sources from `sources.json` in your user
+configuration folder (`~/.config/pusula/` on Linux, `%APPDATA%\pusula\` on Windows; the **Sources** page shows the
+exact path). Without that file it shows `~/.claude`.
+
+```json
+{
+  "sources": [
+    { "name": "~/.claude", "path": "~/.claude" },
+    { "name": "Notes", "path": "~/Documents/notes" }
+  ]
+}
+```
+
+- **Add or remove** sources on the Sources page: **Choose folder…** lists the vaults it finds on the disk and lets
+  you browse folders. Changes are written to `sources.json`; editing the file by hand works too, without a restart.
+- **Profiles** are detected automatically: a folder with `.obsidian/` is an Obsidian vault, a Claude Code
+  configuration folder is shown with load layers and tokens, anything else as plain Markdown.
+- **Folders on the command line** (`dotnet run --project src/Pusula -- <folder> [<folder>…]`, absolute paths) replace the list.
+
+## Remote access
+
+pusula reads the folders of the computer it runs on; another device is just a screen. **pusula has no login**: anyone
+who can reach its address can read the files it shows. By default it listens on `localhost` only.
+
+| Way | How | |
+|---|---|---|
+| Private network ([Tailscale](https://tailscale.com) or similar) | `dotnet run --project src/Pusula -- --urls http://<tailscale-ip>:5190` | ✅ recommended: encrypted, only your devices |
+| SSH tunnel | `ssh -L 5190:localhost:5190 <user>@<computer>`, then open <http://localhost:5190> | ✅ |
+| Home network (LAN address) | `--urls http://<lan-ip>:5190` | ⚠️ only on a network you trust: plain HTTP |
+| The internet (port forwarding, public tunnels) | | ❌ don't |
+
+Adding or removing sources and browsing folders work only from the computer pusula runs on. To allow them from your
+private network too, start it with `--Pusula:AllowRemoteEdit true`. Other websites can never change your sources or
+browse your folders, whatever the setting, and the server answers only to IP addresses, `localhost`, its own machine name and `*.ts.net`; add other names with
+`--Pusula:AllowedHosts "name1;name2"`.
+
+## Privacy and safety
+
+- **Read-only.** pusula never writes to the folders it shows. The only file it writes is its own `sources.json`.
+- **Only `.md` files are indexed and served**; `settings.json`, credentials and other files never leave the server.
+- **Local-first.** No accounts, no telemetry, no network access needed; the JavaScript libraries are in the repository.
+
+## Limits
+
+- Token counts are a rough estimate (characters ÷ 4).
+- Images, Mermaid diagrams, Obsidian Bases, canvases and footnotes are not drawn yet; raw HTML is shown as text.
+- Run it with `dotnet run`; a published binary started from another folder does not find its web files yet.
+
+## Development
+
+```bash
+dotnet build pusula.slnx
+dotnet test --solution pusula.slnx                                                  # .NET tests
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test "tests/web/*.test.mjs"   # UI tests
+```
+
+- `src/Pusula`: one ASP.NET Core project (minimal APIs) — the server indexes the folders and answers JSON; the UI in
+  `src/Pusula/wwwroot` is plain HTML, CSS and JavaScript with no build step. API description: `/openapi/v1.json`.
+- Tests use synthetic data only. `CLAUDE.md` holds the rules for contributors and their AI agents.
+
+## License
+
+[Apache-2.0](LICENSE)

@@ -1,0 +1,1 @@
+- [Sensor ingest](project_sensor_ingest.md) — readings arrive in batches of 100 over MQTT
