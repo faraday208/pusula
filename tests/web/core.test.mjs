@@ -3783,8 +3783,19 @@ describe('browseFolder, browseFolders, folderKind and folderHolds (one folder of
     );
     assert.equal(core.folderKind('claude'), 'Claude');
     assert.equal(core.folderKind('Vault'), 'Vault');
-    assert.equal(core.folderKind('Markdown'), '', 'the picker marks a vault and a Claude configuration only');
+    assert.equal(core.folderKind('Markdown'), '', 'the picker marks a vault, a folder of notes and a Claude configuration only');
     assert.equal(core.folderKind(undefined), '');
+  });
+
+  it('a folder of notes that the server recognized by its content is a kind of its own, in either case; it is no profile of a source', () => {
+    assert.equal(core.folderKind('Notes'), 'Notes');
+    assert.equal(core.folderKind('notes'), 'Notes');
+    assert.equal(core.folderKind('Note'), '');
+    assert.equal(core.folderKind('Markdown'), '', 'what a source made of it is called is not what the folder is called');
+    assert.deepEqual(
+      core.browseFolder({ name: 'Fikirler', path: '/home/ana/Fikirler', display: '~/Fikirler', kind: 'Notes', markdownCount: 12 }),
+      { name: 'Fikirler', path: '/home/ana/Fikirler', display: '~/Fikirler', kind: 'Notes', count: 12, more: false, listed: false },
+    );
   });
 
   it('what the server leaves out is what the page says nothing of: no count, not listed, no kind; the name is the last one of the path, the display the path', () => {

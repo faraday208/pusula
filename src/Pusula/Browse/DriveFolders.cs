@@ -1,8 +1,12 @@
+using Pusula.Sources;
+
 namespace Pusula.Browse;
 
 /// <summary>
 /// The roots under which this machine keeps its drives, with how deep the search for vaults looks into each: where a vault
-/// on a second drive or a memory stick is. Linux and macOS mount their drives in folders (<c>/mnt</c> and <c>/media</c>,
+/// on a second drive or a memory stick is. Only a vault is found at the last level of these roots, but for the system drive of Windows (see
+/// <see cref="SearchRoot.ProbesLastLevel"/>): a drive that is not the one the system is on may sleep or be slow, and asking its last level for
+/// folders of notes would open a folder for each. Linux and macOS mount their drives in folders (<c>/mnt</c> and <c>/media</c>,
 /// and <c>/Volumes</c> on macOS), and those folders are the roots. Windows has no such folders: there the roots are the
 /// drives themselves, the root of every ready fixed or removable drive (<c>C:\</c>, <c>D:\</c>, a memory stick), and the
 /// search leaves out the system folders at its top (<see cref="WindowsSystemFolders"/>). The extension point of the tests,
@@ -36,7 +40,9 @@ internal sealed record DriveFolders(IEnumerable<SearchRoot> Roots)
 
     /// <summary>The drive folders of the operating system this runs on: the drives themselves on Windows, the folders of <see cref="For"/> elsewhere.</summary>
     public static DriveFolders ForThisMachine() =>
-        OperatingSystem.IsWindows() ? ForWindowsDrives(ReadyDriveRoots()) : For(OperatingSystem.IsMacOS());
+        OperatingSystem.IsWindows()
+            ? ForWindowsDrives(ReadyDriveRoots(), Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)))
+            : For(OperatingSystem.IsMacOS());
 
     /// <summary>The drive folders of a system that mounts its drives in folders: <c>/mnt</c> and <c>/media</c>, and <c>/Volumes</c> on macOS. (Where they do not exist, they are skipped.)</summary>
     /// <param name="isMacOs">Whether it is macOS.</param>
@@ -53,12 +59,18 @@ internal sealed record DriveFolders(IEnumerable<SearchRoot> Roots)
 
     /// <summary>
     /// The drive folders of Windows: the root of each drive, <see cref="MountDepth"/> levels deep like <c>/mnt</c>, without
-    /// <see cref="WindowsSystemFolders"/> at its top. Which drives there are is asked each time the roots are read (see
+    /// <see cref="WindowsSystemFolders"/> at its top. The folders at the last level are asked for an entry note on the system drive only
+    /// (<see cref="SearchRoot.ProbesLastLevel"/>). Which drives there are is asked each time the roots are read (see
     /// <see cref="Roots"/>), so a list that changes gives roots that change.
     /// </summary>
     /// <param name="driveRoots">The roots of the drives, such as <c>C:\</c>.</param>
-    internal static DriveFolders ForWindowsDrives(IEnumerable<string> driveRoots) =>
-        new(driveRoots.Select(root => new SearchRoot(root, MountDepth) { SkippedAtTop = WindowsSystemFolders }));
+    /// <param name="systemDrive">The root of the drive that Windows is on (the one of the Windows folder), which is one of <paramref name="driveRoots"/>; none when null. A parameter so that it can be made up where there is no Windows.</param>
+    internal static DriveFolders ForWindowsDrives(IEnumerable<string> driveRoots, string? systemDrive = null) =>
+        new(driveRoots.Select(root => new SearchRoot(root, MountDepth)
+        {
+            SkippedAtTop = WindowsSystemFolders,
+            ProbesLastLevel = systemDrive is not null && SourcePaths.Same(root, systemDrive),
+        }));
 
     // The drives that hold something to search: a disk or a memory stick that is ready. A network drive is left out (it can
     // take long to answer, or not answer at all), so is an optical one, and a drive that is not ready (a card reader with no

@@ -61,8 +61,10 @@ exact path). Without that file it shows `~/.claude`.
 On Windows, write a path with forward slashes (`C:/Users/you/notes`) or doubled backslashes (`C:\\Users\\you\\notes`): the file is
 JSON, where a single backslash starts an escape.
 
-- **Add or remove** sources on the Sources page: **Choose folder…** lists the vaults it finds on the disk and lets
-  you browse folders. Changes are written to `sources.json`; editing the file by hand works too, without a restart.
+- **Add or remove** sources on the Sources page: **Choose folder…** lists the Obsidian vaults it finds on the disk and
+  the folders of linked notes it recognizes by their content (an entry note such as `README.md` or `Home.md`, mostly
+  Markdown files, wikilinks between the notes), and lets you browse folders. Changes are written to `sources.json`;
+  editing the file by hand works too, without a restart.
 - **Profiles** are detected automatically: a folder with `.obsidian/` is an Obsidian vault, a Claude Code
   configuration folder is shown with load layers and tokens, anything else as plain Markdown.
 - **Folders on the command line** (`dotnet run --project src/Pusula -- <folder> [<folder>…]`, absolute paths, before any option such as `--urls`)
@@ -89,6 +91,9 @@ browse your folders, whatever the setting, and the server answers only to IP add
 
 - **Read-only.** pusula never writes to the folders it shows. The only file it writes is its own `sources.json`.
 - **Only `.md` files are indexed and served**; `settings.json`, credentials and other files never leave the server.
+- **Recognizing note folders reads a little of your notes.** To tell a folder of notes that has no `.obsidian/` folder,
+  **Choose folder…** reads the first few kilobytes of some of its notes (at most 20 per folder) and only looks for a
+  wikilink. This happens on this computer only; nothing of what it reads is kept or sent anywhere.
 - **Local-first.** No accounts, no telemetry, no network access needed; the JavaScript libraries are in the repository.
 
 ## Limits

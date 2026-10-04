@@ -121,6 +121,44 @@ public sealed class CommandLineTests
         configuration.Build().GetSection("Pusula").Get<PusulaOptions>()!.Roots.ShouldBeNull();
     }
 
+    // ---- The setting that switches the Debug log of the folder search on is a host option, not a folder ------------
+
+    [Theory]
+    [InlineData("--Logging:LogLevel:Pusula.Browse=Debug")]
+    [InlineData("--Logging:LogLevel:Pusula.Browse.FolderFinder=Debug")]
+    public void Parse_LoggingSettingWithEquals_IsAHostArgumentAndIsNotTakenForAFolder(string setting)
+    {
+        CommandLine alone = CommandLine.Parse([setting]);
+        CommandLine afterFolders = CommandLine.Parse(["/first", "~/second", setting]);
+
+        alone.Roots.ShouldBeEmpty();
+        alone.HostArguments.ShouldBe([setting]);
+        alone.FindMisplacedFolderError().ShouldBeNull();
+        afterFolders.Roots.ShouldBe(["/first", "~/second"]);
+        afterFolders.HostArguments.ShouldBe([setting]);
+        afterFolders.FindMisplacedFolderError().ShouldBeNull();
+    }
+
+    [Fact]
+    public void Parse_LoggingSettingWithTheValueAfterTheOption_IsAHostArgumentAndTheValueIsNotTakenForAFolder()
+    {
+        CommandLine commandLine = CommandLine.Parse(["/first", "--Logging:LogLevel:Pusula.Browse", "Debug", "--urls", "http://localhost:5190"]);
+
+        commandLine.Roots.ShouldBe(["/first"]);
+        commandLine.HostArguments.ShouldBe(["--Logging:LogLevel:Pusula.Browse", "Debug", "--urls", "http://localhost:5190"]);
+        commandLine.FindMisplacedFolderError().ShouldBeNull();
+    }
+
+    [Fact]
+    public void AddRootsTo_LoggingSettingOfTheCommandLine_ReachesTheLoggingSectionOfTheHostConfiguration()
+    {
+        CommandLine commandLine = CommandLine.Parse(["/first", "--Logging:LogLevel:Pusula.Browse=Debug"]);
+
+        IConfigurationRoot built = new ConfigurationBuilder().AddCommandLine(commandLine.HostArguments).Build();
+
+        built["Logging:LogLevel:Pusula.Browse"].ShouldBe("Debug");
+    }
+
     // ---- WantsVersion: pusula --version, answered before anything else -----------------------------------------
 
     [Fact]

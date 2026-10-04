@@ -43,7 +43,7 @@ commandLine.AddRootsTo(builder.Configuration);
 
 builder.Services.AddOptions<PusulaOptions>().BindConfiguration(PusulaOptions.SectionName);
 builder.Services.ConfigureHttpJsonOptions(options => ApiJson.Configure(options.SerializerOptions));
-builder.Services.AddOpenApi(options => options.AddSourceParameter());
+builder.Services.AddOpenApi(options => options.AddSourceParameter().AddNullableEnumSchemas());
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();
 

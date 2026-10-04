@@ -1588,10 +1588,13 @@ export function browseUrl(path, { hidden = false } = {}) {
   return `/api/browse${query.length > 0 ? `?${query.join('&')}` : ''}`;
 }
 
-/** What a folder that holds something this page reads is called: `Vault`, `Claude`, or '' for any other folder (and for a kind that the page has no word for). */
+/**
+ * What a folder that holds something this page reads is called: `Vault`, `Claude`, `Notes` (a folder of linked notes without a `.obsidian`, which the server
+ * recognized by what is in it), or '' for any other folder (and for a kind that the page has no word for).
+ */
 export function folderKind(kind) {
   const name = enumName(kind);
-  return name === 'Vault' || name === 'Claude' ? name : '';
+  return name === 'Vault' || name === 'Claude' || name === 'Notes' ? name : '';
 }
 
 /** The last name of a path, whichever separator it has (`/a/b/` is `b`); the whole path when it has none (the root). */

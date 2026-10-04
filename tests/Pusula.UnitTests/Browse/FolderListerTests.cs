@@ -1,6 +1,5 @@
 using System.Runtime.Versioning;
 using Pusula.Browse;
-using Pusula.Indexing;
 using Pusula.UnitTests.Support;
 using Shouldly;
 using Xunit;
@@ -312,7 +311,7 @@ public sealed class FolderListerTests
 
         FolderListing listing = List(temp.Path);
 
-        listing.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([("Plain", null), ("Vault", SourceProfile.Vault)]);
+        listing.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([("Plain", null), ("Vault", FolderKind.Vault)]);
     }
 
     [Fact]
@@ -330,8 +329,8 @@ public sealed class FolderListerTests
 
         listing.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe(
         [
-            (".claude", SourceProfile.Claude),
-            ("config", SourceProfile.Claude),
+            (".claude", FolderKind.Claude),
+            ("config", FolderKind.Claude),
             ("only-claude-md", null),
             ("only-rules", null),
         ]);
@@ -345,7 +344,24 @@ public sealed class FolderListerTests
         temp.Write("both/CLAUDE.md", "x");
         temp.CreateDirectory("both/rules");
 
-        List(temp.Path).Folders.Single().Kind.ShouldBe(SourceProfile.Vault);
+        List(temp.Path).Folders.Single().Kind.ShouldBe(FolderKind.Vault);
+    }
+
+    [Fact]
+    public void List_FolderThatLooksLikeAFolderOfLinkedNotes_HasNoKindInAListing()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("Ideas/Home.md", "[[n01]]");
+        for (int i = 1; i <= 12; i++)
+        {
+            temp.Write($"Ideas/n{i:D2}.md", "See [[Home]].");
+        }
+
+        // Only the search for folders reads what is in a folder for that: a listing says what the name of a folder and its directories say.
+        FolderListing listing = List(temp.Path);
+
+        listing.Folders.Single().Kind.ShouldBeNull();
+        listing.Folders.Single().MarkdownCount.ShouldBe(13);
     }
 
     // ---- The Markdown count -------------------------------------------------------------------------------------
@@ -397,7 +413,7 @@ public sealed class FolderListerTests
         FolderListing listing = List(temp.Path, limits: BrowseLimits.Default with { CountEntries = 1 });
 
         listing.Folders.Select(folder => (folder.Name, folder.MarkdownCount)).ShouldBe([("a", 1), ("b", null), ("c", null)]);
-        listing.Folders[1].Kind.ShouldBe(SourceProfile.Vault);
+        listing.Folders[1].Kind.ShouldBe(FolderKind.Vault);
         listing.Folders[1].More.ShouldBeNull();
     }
 
@@ -454,7 +470,7 @@ public sealed class FolderListerTests
         FolderListing listing = List(home, home: home);
 
         // The Claude Code folder has three files, the vault two: its plugins folder is read.
-        listing.Folders.Select(folder => (folder.Name, folder.Kind, folder.MarkdownCount)).ShouldBe([(".claude", SourceProfile.Claude, 3), ("vault", SourceProfile.Vault, 2)]);
+        listing.Folders.Select(folder => (folder.Name, folder.Kind, folder.MarkdownCount)).ShouldBe([(".claude", FolderKind.Claude, 3), ("vault", FolderKind.Vault, 2)]);
     }
 
     // ---- Listed -------------------------------------------------------------------------------------------------

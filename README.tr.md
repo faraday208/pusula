@@ -61,8 +61,10 @@ yoksa `~/.claude`'u gösterir.
 Windows'ta yolu `/` ile (`C:/Users/sen/notlar`) ya da çift ters bölüyle (`C:\\Users\\sen\\notlar`) yaz: dosya JSON'dur ve tek
 ters bölü bir kaçış dizisi başlatır.
 
-- **Ekle ya da kaldır:** Kaynaklar sayfasında **Klasör seç…** diskte bulduğu kasaları listeler ve klasörlerde
-  gezinmeni sağlar. Değişiklik `sources.json`'a yazılır; dosyayı elle düzenlemek de olur, yeniden başlatmak gerekmez.
+- **Ekle ya da kaldır:** Kaynaklar sayfasında **Klasör seç…** diskte bulduğu Obsidian kasalarını ve içeriğinden
+  tanıdığı bağlantılı not klasörlerini (`README.md` ya da `Home.md` gibi bir giriş notu, çoğunluğu Markdown olan
+  dosyalar, notlar arasında wikilink'ler) listeler ve klasörlerde gezinmeni sağlar. Değişiklik `sources.json`'a
+  yazılır; dosyayı elle düzenlemek de olur, yeniden başlatmak gerekmez.
 - **Profil** kendiliğinden anlaşılır: `.obsidian/` içeren klasör Obsidian kasasıdır, Claude Code yapılandırma
   klasörü katmanları ve token'larıyla gösterilir, gerisi düz Markdown olarak.
 - **Komut satırındaki klasörler** (`dotnet run --project src/Pusula -- <klasör> [<klasör>…]`, tam yolla, `--urls` gibi seçeneklerden
@@ -89,6 +91,9 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
 
 - **Salt-okunur.** pusula gösterdiği klasörlere asla yazmaz. Yazdığı tek dosya kendi `sources.json`'u.
 - **Yalnız `.md` dosyaları indekslenir ve sunulur**; `settings.json`, kimlik bilgileri ve öteki dosyalar sunucudan çıkmaz.
+- **Not klasörlerini tanımak notlarının küçük bir kısmını okur.** `.obsidian/` klasörü olmayan bir not klasörünü ayırt
+  etmek için **Klasör seç…** notlarından bazılarının (klasör başına en çok 20) ilk birkaç kilobaytını okur ve yalnız
+  wikilink arar. Bu yalnızca bu bilgisayarda olur; okuduğundan hiçbir şey saklanmaz ya da bir yere gönderilmez.
 - **Yerel öncelikli.** Hesap yok, telemetri yok, ağ gerekmez; JavaScript kütüphaneleri repoda.
 
 ## Sınırlar

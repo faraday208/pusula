@@ -1024,14 +1024,31 @@ describe('the folder picker', () => {
     for (const dict of [tr, en]) assert.ok(dict['browse.found.failed'].length > 0, 'a failed search says the reader can browse');
   });
 
-  it('what a row says: what the folder is (vault, Claude), what it holds (a count that stopped says "999+"), and that it is in the list', () => {
-    assert.deepEqual(['Vault', 'Claude'].map((kind) => tr[`browse.kind.${kind}`]), ['vault', 'Claude']);
-    assert.deepEqual(['Vault', 'Claude'].map((kind) => en[`browse.kind.${kind}`]), ['vault', 'Claude']);
+  it('what a row says: what the folder is (vault, Claude, a folder of notes), what it holds (a count that stopped says "999+"), and that it is in the list', () => {
+    assert.deepEqual(['Vault', 'Claude', 'Notes'].map((kind) => tr[`browse.kind.${kind}`]), ['vault', 'Claude', 'not klasörü']);
+    assert.deepEqual(['Vault', 'Claude', 'Notes'].map((kind) => en[`browse.kind.${kind}`]), ['vault', 'Claude', 'notes']);
     assert.equal(i18n.format(tr['browse.count.moreNotes'], { n: 999 }), '999+ not');
     assert.equal(i18n.format(en['browse.count.moreNotes'], { n: 999 }), '999+ notes');
     assert.equal(i18n.format(tr['browse.count.moreFiles'], { n: 999 }), '999+ dosya');
     assert.equal(tr['browse.listed'], 'listede');
     assert.ok(en['browse.listed'].length > 0);
+  });
+
+  it('a folder of notes that the server found says "not klasörü" in Turkish and "notes" in English, by the key the page builds from the kind in the answer; the vault chip stays as it was', () => {
+    const answer = {
+      folders: [
+        { name: 'Fikirler', path: '/home/ana/Fikirler', display: '~/Fikirler', kind: 'Notes', markdownCount: 12 },
+        { name: 'Kasa', path: '/home/ana/Kasa', display: '~/Kasa', kind: 'Vault', markdownCount: 3 },
+      ],
+      complete: true,
+    };
+    const [notes, vault] = core.browseFound(answer).folders;
+    assert.deepEqual([notes.kind, vault.kind], ['Notes', 'Vault']);
+    for (const [lang, expected] of [['tr', ['not klasörü', 'vault']], ['en', ['notes', 'vault']]]) {
+      i18n.setLang(lang);
+      assert.deepEqual([notes, vault].map((folder) => i18n.t(`browse.kind.${folder.kind}`)), expected, lang);
+    }
+    i18n.setLang('en');
   });
 
   it('the folders have a count, and say that there are none, that the list was cut and that it is loading', () => {

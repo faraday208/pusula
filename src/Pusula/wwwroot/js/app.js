@@ -3166,7 +3166,7 @@ function settleBrowseFocus() {
   (rows ? refs.browseList : refs.browseBox).focus({ preventScroll: true });
 }
 
-/** What is said of a folder in a row: what it is (a vault, a Claude configuration) and what it holds. Empty for a folder that is neither and has no Markdown. */
+/** What is said of a folder in a row: what it is (a vault, a folder of notes, a Claude configuration) and what it holds. Empty for a folder that is none of those and has no Markdown. */
 function browseMeta(folder) {
   const meta = el('span', 'browse-meta');
   if (folder.kind !== '') meta.append(el('span', 'browse-kind', t(`browse.kind.${folder.kind}`)));

@@ -849,6 +849,85 @@ public sealed class BrowseEndpointTests
     }
 
     [Fact]
+    public async Task GetFound_FolderOfLinkedNotesWithoutObsidian_IsFoundWithTheKindNotesAndADocumentationFolderIsNot()
+    {
+        await using var app = new EditingApp();
+        app.WriteFile("home/Ideas/Home.md", "# Home\n[[n01]]\n");
+        for (int i = 1; i <= 11; i++)
+        {
+            app.WriteFile($"home/Ideas/n{i:D2}.md", "See [[Home]].\n");
+            app.WriteFile($"home/Docs/page{i:D2}.md", "Plain text, no links.\n");
+        }
+
+        app.WriteFile("home/Docs/README.md", "# Docs\n");
+        await app.StartAsync();
+
+        using HttpResponseMessage response = await app.GetFoundAsync();
+        using JsonDocument json = await response.ReadJsonAsync();
+        JsonElement folders = json.RootElement.GetProperty("folders");
+        JsonElement ideas = Folder(folders, "Ideas");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        Names(folders).ShouldBe([".claude", "Ideas"]);
+        ideas.PropertyNames().ShouldBe(["name", "path", "display", "listed", "kind", "markdownCount"], ignoreOrder: true);
+        ideas.GetProperty("kind").GetString().ShouldBe("Notes");
+        ideas.GetProperty("path").GetString().ShouldBe(Path.Join(app.Home, "Ideas"));
+        ideas.GetProperty("display").GetString().ShouldBe(Tilde("Ideas"));
+        ideas.GetProperty("listed").GetBoolean().ShouldBeFalse();
+        ideas.GetProperty("markdownCount").GetInt32().ShouldBe(12);
+        json.RootElement.GetProperty("complete").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetFound_FolderOfNotesThatIsAddedAsASource_IsAMarkdownSourceWithTheNotesFeatures()
+    {
+        await using var app = new EditingApp();
+        app.WriteFile("home/Ideas/Home.md", "# Home\n[[n01]]\n");
+        for (int i = 1; i <= 11; i++)
+        {
+            app.WriteFile($"home/Ideas/n{i:D2}.md", "See [[Home]].\n");
+        }
+
+        await app.StartAsync();
+
+        using (HttpResponseMessage response = await app.PostAsync(Path.Join(app.Home, "Ideas")))
+        {
+            response.StatusCode.ShouldBe(HttpStatusCode.Created);
+            using JsonDocument added = await response.ReadJsonAsync();
+
+            // What adding it makes of it is what it always made of a folder without .obsidian: the kind of a found folder is not a profile.
+            added.RootElement.GetProperty("profile").GetString().ShouldBe("Markdown");
+            added.RootElement.GetProperty("fileCount").GetInt32().ShouldBe(12);
+        }
+
+        using HttpResponseMessage found = await app.GetFoundAsync();
+        using JsonDocument json = await found.ReadJsonAsync();
+        JsonElement ideas = Folder(json.RootElement.GetProperty("folders"), "Ideas");
+
+        ideas.GetProperty("kind").GetString().ShouldBe("Notes");
+        ideas.GetProperty("listed").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetBrowse_FolderOfLinkedNotes_HasNoKindInAListing()
+    {
+        await using var app = new EditingApp();
+        app.WriteFile("home/Ideas/Home.md", "# Home\n[[n01]]\n");
+        for (int i = 1; i <= 11; i++)
+        {
+            app.WriteFile($"home/Ideas/n{i:D2}.md", "See [[Home]].\n");
+        }
+
+        await app.StartAsync();
+
+        using HttpResponseMessage response = await app.GetBrowseAsync();
+        using JsonDocument json = await response.ReadJsonAsync();
+
+        // The listing says what the folders say by their names and directories; only the search for folders reads what is in them.
+        Folder(json.RootElement.GetProperty("folders"), "Ideas").TryGetProperty("kind", out _).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task GetFound_DriveFolders_AreSearchedAndShownWithTheirFullPath()
     {
         await using var app = new EditingApp();

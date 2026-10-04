@@ -3069,6 +3069,15 @@ describe('the folder picker (the "Choose a folder..." window of the sources page
     assert.match(functionSource('browseMeta'), /tn\(`source\.count\.\$\{notes \? 'notes' : 'files'\}`, holds\.n\)/);
   });
 
+  it('a found folder of notes gets the chip of its kind, in its own words (a vault keeps its chip), and holds notes like a vault does', () => {
+    const meta = functionSource('browseMeta');
+    assert.match(meta, /if \(folder\.kind !== ''\) meta\.append\(el\('span', 'browse-kind', t\(`browse\.kind\.\$\{folder\.kind\}`\)\)\);/, 'one chip for every kind, by the key of the kind');
+    assert.match(meta, /const notes = folder\.kind !== 'Claude';/, 'only a Claude configuration holds files');
+    assert.match(wholeFunction('foundRow'), /const meta = browseMeta\(folder\);/, 'a found row says it through the same function as any row');
+    assert.match(code('core.js'), /return name === 'Vault' \|\| name === 'Claude' \|\| name === 'Notes' \? name : '';/);
+    assert.match(ownRule('.browse-kind') ?? '', /border: 1px solid var\(--border\)/, 'the chip of every kind is one chip');
+  });
+
   it('it is a dialog over everything, of the quick opener\'s own kind (its scrim, the page\'s shadow and no hairline beside it); the list is what scrolls; the selected row is the accent tint, and what is quiet takes the text colour on it', () => {
     const rule = ownRule('.browse') ?? '';
     assert.match(rule, /position: fixed/);

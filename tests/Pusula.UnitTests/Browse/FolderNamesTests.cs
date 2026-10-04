@@ -82,6 +82,34 @@ public sealed class FolderNamesTests
         FolderNames.IsHidden(new DirectoryInfo(folder)).ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData(".git", true)]
+    [InlineData(".obsidian", true)]
+    [InlineData("node_modules", true)]
+    [InlineData("bin", true)]
+    [InlineData("obj", true)]
+    [InlineData("notes", false)]
+    [InlineData("binaries", false)]
+    [InlineData("object", false)]
+    [InlineData("my-obj", false)]
+    [InlineData("node_modules_old", false)]
+    public void IsLeftOutOfSearch_Folder_IsLeftOutWhenItIsHiddenOrHoldsWhatIsBuiltOrFetched(string name, bool expected)
+    {
+        using var temp = new TempDirectory();
+
+        FolderNames.IsLeftOutOfSearch(new DirectoryInfo(temp.CreateDirectory(name))).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void IsLeftOutOfSearch_NameThatDiffersInCase_IsLeftOutWhereThePlatformComparesPathsIgnoringCase()
+    {
+        using var temp = new TempDirectory();
+        var folder = new DirectoryInfo(temp.CreateDirectory("BIN"));
+
+        // Windows compares paths ignoring case, the others do not: BIN is not bin there.
+        FolderNames.IsLeftOutOfSearch(folder).ShouldBe(OperatingSystem.IsWindows());
+    }
+
     [Fact]
     public void IsNodeModules_OnlyThatName()
     {

@@ -292,6 +292,23 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         {
             description.ShouldContain(text);
         }
+
+        // The folders of notes that are recognized by what is in them: the rules, and what the budget does to them.
+        foreach (string text in new[]
+        {
+            "kind Notes", "Home.md, index.md, README.md, MOC.md, _index.md or start.md", "at least 10 Markdown files", "up to 3 levels below it",
+            "at least half of the files", "at least a fifth of a sample", "'[[' in the first 4 KB", "at most 20 notes", "at least 60% of its wikilinked notes",
+            "A vault is never left out", "as deep as a vault is (4 levels) under the home directory and, on Windows, on the system drive",
+            "asked for an entry note by reading its first 200 entries", "one that has none among them is taken to have none",
+            "Below /mnt, /media and /Volumes and on the other drives of Windows the folders of the last level are not asked",
+            "an external disk may sleep or be slow", "down to one level above the last (3 levels, 2 below /Volumes)", "a vault is found at every level",
+            "the shallowest first", "one that was not looked into is not listed",
+            "The folders of the last level are asked after the others", "one entry for the folder and one for each entry read",
+            "the ones inside a folder of notes first", "one that was not asked is not listed", "Every entry that the search reads is taken from the budget",
+        })
+        {
+            description.ShouldContain(text);
+        }
     }
 
     [Fact]
@@ -320,8 +337,10 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
             }
         }
 
-        folder.GetProperty("properties").GetProperty("kind").GetRawText().ShouldContain("SourceProfile");
-        folder.GetProperty("properties").GetProperty("kind").GetRawText().ShouldContain("Vault");
+        // The kind of a folder is its own enum, not the profile of a source: a folder of notes has a kind that no profile has.
+        folder.GetProperty("properties").GetProperty("kind").GetRawText().ShouldContain("FolderKind");
+        folder.GetProperty("properties").GetProperty("kind").GetRawText().ShouldContain("Notes");
+        folder.GetProperty("properties").GetProperty("kind").GetRawText().ShouldNotContain("SourceProfile");
     }
 
     [Fact]
@@ -336,6 +355,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Values("LoadMode").ShouldBe(["EverySession", "DescriptionEverySession", "ProjectSession", "Conditional", "OnDemand", "UserInvoked", "Inactive"]);
         Values("LinkKind").ShouldBe(["MarkdownLink", "WikiLink", "ClaudePath", "RelativePath", "Embed"]);
         Values("SourceProfile").ShouldBe(["Claude", "Vault", "Markdown"]);
+        Values("FolderKind").ShouldBe(["Vault", "Claude", "Notes"]);
         Values("LinkStatus").ShouldBe(["Resolved", "NonMarkdown", "Broken", "Pending", "External"]);
     }
 

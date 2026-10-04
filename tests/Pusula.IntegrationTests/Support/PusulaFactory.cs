@@ -23,6 +23,7 @@ internal sealed class PusulaFactory : WebApplicationFactory<Program>
     private readonly ScanLimits? _scanLimits;
     private readonly bool _allowRemoteEdit;
     private readonly Action<IServiceCollection>? _configureServices;
+    private readonly Action<IWebHostBuilder>? _configureHost;
 
     /// <summary>
     /// Serves one folder, the way <c>Pusula:Root</c> does. <paramref name="simulateConnection"/> gives the requests the
@@ -30,11 +31,11 @@ internal sealed class PusulaFactory : WebApplicationFactory<Program>
     /// <c>Pusula:AllowRemoteEdit</c>; <paramref name="configureServices"/> changes the services of the application last.
     /// </summary>
     public PusulaFactory(string root, string? allowedHosts = null, string? environment = null, bool simulateConnection = false, UserDirectories? directories = null, ScanLimits? scanLimits = null, bool allowRemoteEdit = false, Action<IServiceCollection>? configureServices = null)
-        : this(root, sourcesFile: null, allowedHosts, environment, directories, simulateConnection, scanLimits, allowRemoteEdit, configureServices)
+        : this(root, sourcesFile: null, allowedHosts, environment, directories, simulateConnection, scanLimits, allowRemoteEdit, configureServices, configureHost: null)
     {
     }
 
-    private PusulaFactory(string? root, string? sourcesFile, string? allowedHosts, string? environment, UserDirectories? directories, bool simulateConnection, ScanLimits? scanLimits, bool allowRemoteEdit, Action<IServiceCollection>? configureServices)
+    private PusulaFactory(string? root, string? sourcesFile, string? allowedHosts, string? environment, UserDirectories? directories, bool simulateConnection, ScanLimits? scanLimits, bool allowRemoteEdit, Action<IServiceCollection>? configureServices, Action<IWebHostBuilder>? configureHost)
     {
         _root = root;
         _sourcesFile = sourcesFile;
@@ -45,17 +46,18 @@ internal sealed class PusulaFactory : WebApplicationFactory<Program>
         _scanLimits = scanLimits;
         _allowRemoteEdit = allowRemoteEdit;
         _configureServices = configureServices;
+        _configureHost = configureHost;
     }
 
     /// <summary>
     /// Serves the sources of a sources file (and never reads the one in the home directory of the user).
     /// <paramref name="directories"/> are the home and application data directories to use instead of the user's,
     /// <paramref name="simulateConnection"/> gives the requests the connection of a real server (see <see cref="SimulatedConnection"/>),
-    /// <paramref name="allowRemoteEdit"/> sets <c>Pusula:AllowRemoteEdit</c> and <paramref name="configureServices"/> changes the
-    /// services of the application last.
+    /// <paramref name="allowRemoteEdit"/> sets <c>Pusula:AllowRemoteEdit</c>, <paramref name="configureServices"/> changes the
+    /// services of the application last and <paramref name="configureHost"/> the host (its settings, its logging) after all the rest.
     /// </summary>
-    public static PusulaFactory FromSourcesFile(string sourcesFile, UserDirectories? directories = null, bool simulateConnection = false, ScanLimits? scanLimits = null, bool allowRemoteEdit = false, Action<IServiceCollection>? configureServices = null) =>
-        new(root: null, sourcesFile, allowedHosts: null, environment: null, directories, simulateConnection, scanLimits, allowRemoteEdit, configureServices);
+    public static PusulaFactory FromSourcesFile(string sourcesFile, UserDirectories? directories = null, bool simulateConnection = false, ScanLimits? scanLimits = null, bool allowRemoteEdit = false, Action<IServiceCollection>? configureServices = null, Action<IWebHostBuilder>? configureHost = null) =>
+        new(root: null, sourcesFile, allowedHosts: null, environment: null, directories, simulateConnection, scanLimits, allowRemoteEdit, configureServices, configureHost);
 
     /// <summary>The id the application gives to the folder of <c>Pusula:Root</c>: derived from the name of the folder.</summary>
     public string SourceId =>
@@ -121,5 +123,6 @@ internal sealed class PusulaFactory : WebApplicationFactory<Program>
         });
 
         builder.ConfigureLogging(logging => logging.ClearProviders());
+        _configureHost?.Invoke(builder);
     }
 }

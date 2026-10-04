@@ -15,6 +15,13 @@ public sealed class DriveFoldersTests
         DriveFolders.For(isMacOs: true).Roots.ShouldBe([new SearchRoot("/mnt", 4), new SearchRoot("/media", 4), new SearchRoot("/Volumes", 3)]);
 
     [Fact]
+    public void For_MountFolders_DoNotAskTheirLastLevel()
+    {
+        // An external disk may sleep or be slow: asking its last level would open a folder for each, so only the folders that the walk reads can be folders of notes there.
+        DriveFolders.For(isMacOs: true).Roots.ShouldAllBe(root => !root.ProbesLastLevel);
+    }
+
+    [Fact]
     public void None_HasNoRoots() =>
         DriveFolders.None.Roots.ShouldBeEmpty();
 
@@ -38,6 +45,22 @@ public sealed class DriveFoldersTests
             root.SkippedAtTop.ShouldBe(DriveFolders.WindowsSystemFolders);
         }
     }
+
+    [Fact]
+    public void ForWindowsDrives_SystemDrive_IsTheOnlyDriveThatAsksItsLastLevel()
+    {
+        SearchRoot[] roots = [.. DriveFolders.ForWindowsDrives([@"C:\", @"D:\", @"E:\"], systemDrive: @"C:\").Roots];
+
+        roots.Select(root => (root.Path, root.ProbesLastLevel)).ShouldBe([(@"C:\", true), (@"D:\", false), (@"E:\", false)]);
+    }
+
+    [Fact]
+    public void ForWindowsDrives_NoSystemDriveGiven_NoDriveAsksItsLastLevel() =>
+        DriveFolders.ForWindowsDrives([@"C:\", @"D:\"]).Roots.ShouldAllBe(root => !root.ProbesLastLevel);
+
+    [Fact]
+    public void ForWindowsDrives_SystemDriveThatIsNotAmongTheDrives_MakesNoDriveAskItsLastLevel() =>
+        DriveFolders.ForWindowsDrives([@"D:\", @"E:\"], systemDrive: @"C:\").Roots.ShouldAllBe(root => !root.ProbesLastLevel);
 
     [Fact]
     public void ForWindowsDrives_NoDrives_HasNoRoots() =>
@@ -96,6 +119,19 @@ public sealed class DriveFoldersTests
         // The drive that Windows is on is one of them.
         string systemDrive = Path.GetPathRoot(Environment.SystemDirectory)!;
         roots.ShouldContain(root => string.Equals(root.Path, systemDrive, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ForThisMachine_Windows_OnlyTheDriveThatWindowsIsOnAsksItsLastLevel()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs the drives of Windows.");
+
+        string systemDrive = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!;
+
+        string[] asking = [.. DriveFolders.ForThisMachine().Roots.Where(root => root.ProbesLastLevel).Select(root => root.Path)];
+
+        asking.Length.ShouldBe(1);
+        string.Equals(asking[0], systemDrive, StringComparison.OrdinalIgnoreCase).ShouldBeTrue();
     }
 
     [Fact]

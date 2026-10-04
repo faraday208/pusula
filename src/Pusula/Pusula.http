@@ -158,7 +158,8 @@ path=~/Documents/notlar
 # Each folder of "folders":
 #   "name", "path", "display"
 #   "listed"        true when a source shows this very folder already (the same full path)
-#   "kind"          Vault (it has a .obsidian directory) or Claude (as a source left to "auto" would be a Claude Code folder); left out for any other folder
+#   "kind"          Vault (it has a .obsidian directory) or Claude (as a source left to "auto" would be a Claude Code folder); left out for any other folder.
+#                   The folders of GET /api/browse/found, below, have a third one: Notes, a folder of linked notes that has no .obsidian directory
 #   "markdownCount" the Markdown files below it, at any depth, counted the way a source over the folder finds them: hidden folders and files are not
 #                   counted, nor node_modules in a vault or a plain folder; in a Claude folder the runtime folders directly in it (plugins, sessions, ...)
 #                   are not entered and of projects/<project>/ only memory is, so the number is the file count of a source over it. At most 999;
@@ -176,16 +177,42 @@ Accept: application/json
 GET {{baseUrl}}/api/browse?path=~/Documents&hidden=1
 Accept: application/json
 
-### The vaults and the Claude Code folder of this machine, to offer as sources
-# Looks for folders with a .obsidian directory (vaults) in the home directory (4 levels deep) and below /mnt and /media (4 levels), and
-# /Volumes on macOS (3 levels), and for the .claude folder of the home directory. On Windows it looks in the root of every ready fixed
-# or removable drive instead of /mnt and /media (4 levels), but not into the Windows, Program Files, Program Files (x86), ProgramData,
-# Users, PerfLogs, Recovery and System Volume Information folders at the top of a drive, nor into the ones whose names start with $.
+### The vaults, the folders of notes and the Claude Code folder of this machine, to offer as sources
+# Looks for folders with a .obsidian directory (vaults, "kind": "Vault") in the home directory (4 levels deep) and below /mnt and /media
+# (4 levels), and /Volumes on macOS (3 levels), for folders of linked notes that have no .obsidian directory ("kind": "Notes", below), and
+# for the .claude folder of the home directory. On Windows it looks in the root of every ready fixed or removable drive instead of /mnt
+# and /media (4 levels), but not into the Windows, Program Files, Program Files (x86), ProgramData, Users, PerfLogs, Recovery and
+# System Volume Information folders at the top of a drive, nor into the ones whose names start with $.
 # It does not go into hidden folders (a name that starts with a dot; on Windows also a folder with the Hidden or System attribute, such
-# as AppData), node_modules, bin or obj, nor into a vault. It stops after about 1.5 seconds or 100,000 file system entries: "complete":
-# false then says there may be more. The result is remembered for 60 seconds ("listed" always says what the sources are now). The folders
+# as AppData), node_modules, bin or obj, nor into a vault.
+# A folder without .obsidian is a folder of notes when it has an entry note of its own (Home.md, index.md, README.md, MOC.md, _index.md
+# or start.md, in any case); at least 10 Markdown files in it and up to 3 levels below it, which are at least half of the files there;
+# and a wikilink ("[[") in at least a fifth of a sample of them (the first 4 KB of at most 20 of the notes, spread over the folder; they are
+# read on the server and nothing of them leaves it). A folder of notes that has a vault or another folder of notes inside it which holds
+# at least 60% of its wikilinked notes is left out, the one inside is listed; a vault never is. The folders the search starts from are never
+# listed. A folder of notes is found as deep as a vault is (4 levels) under the home directory and, on Windows, on the system drive (the drive of
+# the Windows folder): the search does not read the folders of the last level, so each of those is asked for an entry note by reading its first
+# 200 entries, in the order of the file system, and one that has none among them is taken to have none (a choice: a folder of notes is small near
+# its root, and no more is read of a folder of thousands of files). Below /mnt, /media and /Volumes and on the other drives of Windows the folders
+# of the last level are not asked: an external disk may sleep or be slow, so that one folder takes seconds to open and holds the whole search back,
+# and the folders of notes that were measured at the last level were all under the home directory. A folder of notes there is found down to one
+# level above the last (3 levels, 2 below /Volumes); a vault is found at every level.
+# The search stops after about 1.5 seconds or 100,000 file system entries: "complete": false then says there may be more. The vaults are
+# looked for first; the folders of notes are looked into with what is left of that budget, the shallowest first, and one that was not
+# looked into is not listed. The folders of the last level are asked after the others, at one entry for the folder and one for each entry
+# read (the ones inside a folder of notes first), and one that was not asked is not listed. Every entry that the search reads is taken from the
+# budget, so that the number of entries and the time both stop it at any point.
+# A file system that does not answer (a disk that sleeps, a network drive that is gone) does not hold the request: it waits for the search at most
+# 250 ms longer than the 1.5 seconds, and then for the counting of the folders found at most 250 ms longer than its 400 ms. If a call of the file
+# system has not returned by then, the answer has the folders that the search had found so far (every vault the walk had met, the folders of
+# notes of the stages that were over), "complete": false and no "markdownCount"; the search goes on until the call returns, and what it finds then
+# is thrown away. While it does, no other search starts and every request gets the same answer. Such an answer is not remembered: the first request after the file system answers again searches anew.
+# The result of a search that ended is remembered for 60 seconds ("listed" always says what the sources are now). The folders
 # have the form of those of GET /api/browse and come sorted by "name" (ignoring case, in Turkish alphabetical order) and, for the same
 # name, by "display".
+# To see where the time of a search went, start the server with --Logging:LogLevel:Pusula.Browse=Debug: it then logs a line for each stage of
+# the search (the walk, the candidates and the sampling of their notes, the folders of the last level, the describing of what was found), with
+# what each took from the budget, how long it took and which folder was the slowest, and where the budget ran out.
 GET {{baseUrl}}/api/browse/found
 Accept: application/json
 

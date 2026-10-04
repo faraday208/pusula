@@ -18,12 +18,37 @@ internal static class FolderWalk
         ReturnSpecialDirectories = false,
     };
 
+    // How the calls of this thread list a folder, when something other than the file system is to answer: see Use.
+    [ThreadStatic]
+    private static Func<string, IEnumerable<FileSystemInfo>>? s_listing;
+
     /// <summary>
     /// Lists the entries of a folder, files and folders: a symbolic link that leads to a folder is one of the folders. The
     /// listing is lazy and can throw <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/> while it is read.
     /// </summary>
     /// <param name="folder">Full path of the folder.</param>
-    public static IEnumerable<FileSystemInfo> Entries(string folder) => new DirectoryInfo(folder).EnumerateFileSystemInfos("*", ListingOptions);
+    public static IEnumerable<FileSystemInfo> Entries(string folder) => s_listing is { } listing ? listing(folder) : SystemEntries(folder);
+
+    /// <summary>The listing of <see cref="Entries"/> as the file system gives it, whatever <see cref="Use"/> says.</summary>
+    /// <param name="folder">Full path of the folder.</param>
+    internal static IEnumerable<FileSystemInfo> SystemEntries(string folder) => new DirectoryInfo(folder).EnumerateFileSystemInfos("*", ListingOptions);
+
+    /// <summary>
+    /// Makes <see cref="Entries"/> list folders by <paramref name="listing"/> on this thread until the scope is disposed. The extension point of
+    /// the tests, for a file system that does not answer (a disk that sleeps, a drive that is gone): the search for folders runs on a thread of its
+    /// own, and nothing else makes a call of the file system stall. Other threads are not affected, so tests that run at the same time are not.
+    /// </summary>
+    /// <param name="listing">How to list a folder; the file system's way when null.</param>
+    internal static IDisposable Use(Func<string, IEnumerable<FileSystemInfo>>? listing) => new ListingScope(listing);
+
+    private sealed class ListingScope : IDisposable
+    {
+        private readonly Func<string, IEnumerable<FileSystemInfo>>? _before = s_listing;
+
+        public ListingScope(Func<string, IEnumerable<FileSystemInfo>>? listing) => s_listing = listing;
+
+        public void Dispose() => s_listing = _before;
+    }
 
     /// <summary>Lists the folders inside a folder; like <see cref="Entries"/>, lazy.</summary>
     /// <param name="folder">Full path of the folder.</param>

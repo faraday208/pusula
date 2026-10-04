@@ -1,7 +1,7 @@
 using System.Runtime.Versioning;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pusula.Browse;
-using Pusula.Indexing;
 using Pusula.Startup;
 using Pusula.UnitTests.Support;
 using Shouldly;
@@ -10,7 +10,7 @@ using Xunit;
 namespace Pusula.UnitTests.Browse;
 
 // Every home directory and drive folder here is made in a scratch directory: the real ones are never looked at.
-public sealed class FolderFinderTests
+public sealed partial class FolderFinderTests
 {
     private static readonly string Separator = Path.DirectorySeparatorChar.ToString();
 
@@ -22,13 +22,18 @@ public sealed class FolderFinderTests
         DriveFolders? drives = null,
         BrowseLimits? limits = null,
         TimeProvider? time = null,
-        string? home = null) =>
+        string? home = null,
+        ILogger<FolderFinder>? logger = null,
+        Func<string, IEnumerable<FileSystemInfo>>? listing = null) =>
         new(
             new UserDirectories(home ?? Home(temp), string.Empty),
             drives ?? DriveFolders.None,
             limits ?? BrowseLimits.Default,
             time ?? TimeProvider.System,
-            NullLogger<FolderFinder>.Instance);
+            logger ?? NullLogger<FolderFinder>.Instance)
+        {
+            Listing = listing,
+        };
 
     private static string[] Paths(FoundFolders found) => [.. found.Folders.Select(folder => folder.Path)];
 
@@ -69,8 +74,8 @@ public sealed class FolderFinderTests
         // By name: Notes before Work, whatever their folders are called.
         found.Folders.Select(folder => (folder.Display, folder.Kind, folder.MarkdownCount, folder.More, folder.Listed)).ShouldBe(
         [
-            ("~/Notes".Replace('/', Path.DirectorySeparatorChar), SourceProfile.Vault, 0, null, false),
-            ("~/Documents/Work".Replace('/', Path.DirectorySeparatorChar), SourceProfile.Vault, 3, null, false),
+            ("~/Notes".Replace('/', Path.DirectorySeparatorChar), FolderKind.Vault, 0, null, false),
+            ("~/Documents/Work".Replace('/', Path.DirectorySeparatorChar), FolderKind.Vault, 3, null, false),
         ]);
         found.Folders[1].Name.ShouldBe("Work");
         found.Folders[1].Path.ShouldBe(temp.Resolve("home/Documents/Work"));
@@ -174,7 +179,7 @@ public sealed class FolderFinderTests
 
         FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
 
-        found.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([(".claude", SourceProfile.Claude), ("Notes", SourceProfile.Vault)]);
+        found.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([(".claude", FolderKind.Claude), ("Notes", FolderKind.Vault)]);
         found.Folders[0].MarkdownCount.ShouldBe(2);
     }
 
@@ -407,7 +412,7 @@ public sealed class FolderFinderTests
 
         BrowseFolder claude = Finder(temp).Find(TestContext.Current.CancellationToken).Folders.Single();
 
-        claude.Kind.ShouldBe(SourceProfile.Claude);
+        claude.Kind.ShouldBe(FolderKind.Claude);
         claude.MarkdownCount.ShouldBe(3);
         claude.More.ShouldBeNull();
     }
@@ -583,6 +588,10 @@ public sealed class FolderFinderTests
         BrowseLimits.Default.CacheLifetime.ShouldBe(TimeSpan.FromSeconds(60));
 
     [Fact]
+    public void Find_MarginOfTheDeadlineOfTheApplication_Is250Milliseconds() =>
+        BrowseLimits.Default.DeadlineMargin.ShouldBe(TimeSpan.FromMilliseconds(250));
+
+    [Fact]
     public void Find_SearchThatWasStoppedBecauseTheRequestWasGone_IsNotRemembered()
     {
         using var temp = new TempDirectory();
@@ -618,12 +627,14 @@ public sealed class FolderFinderTests
         using var temp = new TempDirectory();
         string gone = temp.Resolve("gone");
         var queue = new Queue<FolderFinder.Level>();
-        var found = new List<string>();
+        var walked = new FolderFinder.WalkFindings();
 
-        FolderFinder.Visit(new FolderFinder.Level(gone, gone, Depth: 0, MaxDepth: 4), new ScanBudget(maxEntries: 10, TimeSpan.FromMinutes(1)), new HashSet<string>(), queue, found);
+        FolderFinder.Visit(new FolderFinder.Level(gone, gone, Depth: 0, MaxDepth: 4), new ScanBudget(maxEntries: 10, TimeSpan.FromMinutes(1)), new HashSet<string>(), queue, walked);
 
         queue.ShouldBeEmpty();
-        found.ShouldBeEmpty();
+        walked.Vaults.ShouldBeEmpty();
+        walked.Candidates.ShouldBeEmpty();
+        walked.Deepest.ShouldBeEmpty();
     }
 
     [Fact]

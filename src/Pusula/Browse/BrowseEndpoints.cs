@@ -58,22 +58,55 @@ internal static class BrowseEndpoints
 
         browse.MapGet("/found", GetFound)
             .WithName("FindFolders")
-            .WithSummary("Find the vaults of this machine")
+            .WithSummary("Find the vaults and folders of notes of this machine")
             .WithDescription(
                 "Looks for the folders that are likely to be wanted as a source: Obsidian vaults (folders with a '.obsidian' "
-                + "directory) and the '.claude' folder of the home directory. It looks in the home directory and below "
+                + "directory; kind Vault), folders of linked notes that have no '.obsidian' directory but are recognized by their "
+                + "content (kind Notes) and the '.claude' folder of the home directory. It looks in the home directory and below "
                 + "/mnt and /media (down to 4 levels each) and below /Volumes on macOS (3 levels); on Windows it looks in the "
                 + "root of every ready fixed or removable drive instead (down to 4 levels each; not into the Windows, Program "
                 + "Files, Program Files (x86), ProgramData, Users, PerfLogs, Recovery and System Volume Information folders at "
                 + "the top of a drive, nor into the ones whose names start with '$'). It does not go into hidden folders "
                 + "(names that start with '.', and on Windows folders with the Hidden or System attribute, such as 'AppData'), "
-                + "'node_modules', 'bin' or 'obj', nor into a vault. It stops after about 1.5 seconds or 100,000 file "
-                + "system entries: 'complete' is then false, and there may be more folders than are listed. The result is "
-                + "remembered in memory for 60 seconds; 'listed' always says what the sources are now. The folders come sorted "
-                + "by 'name' (ignoring case, in Turkish alphabetical order) and, for the same name, by 'display', in the form of the "
-                + "folders of GET /api/browse ('kind', 'markdownCount', 'more' and 'listed' are told the same way, 'markdownCount' "
-                + "with the same budget and the same limit for one folder). Nothing is written. Who may ask, and the problem "
-                + "details of a refusal (403 Remote, CommandLine, CrossOrigin), are those of GET /api/browse.")
+                + "'node_modules', 'bin' or 'obj', nor into a vault. "
+                + "A folder without a '.obsidian' directory is listed as a folder of notes when all of these hold: it has an entry "
+                + "note of its own (Home.md, index.md, README.md, MOC.md, _index.md or start.md, in any case); in it and up to 3 "
+                + "levels below it there are at least 10 Markdown files, and they are at least half of the files there (hidden "
+                + "files are not counted, and the folders that are not entered are not read); and at least a fifth of a sample of "
+                + "those notes have a wikilink ('[[' in the first 4 KB of the note; the sample is at most 20 notes, spread over the "
+                + "folder; they are read on the server, and nothing of them leaves it). When a vault or another folder of notes lies "
+                + "inside a folder of notes and holds at least 60% of its wikilinked notes (estimated as the share of the sample "
+                + "that has a wikilink times the number of notes), only the one inside is listed: a project folder with a README and "
+                + "a vault in it is listed as the vault. A vault is never left out. The folders that the search starts from are never "
+                + "listed. A folder of notes is found as deep as a vault is (4 levels) under the home directory and, on Windows, on "
+                + "the system drive (the drive of the Windows folder): the search does not read the folders of the last level, so each "
+                + "of those is asked for an entry note by reading its first 200 entries, in the order of the file system, and one that "
+                + "has none among them is taken to have none (a choice: a folder of notes is small near its root, and no more is read of "
+                + "a folder of thousands of files). Below /mnt, /media and /Volumes and on the other drives of Windows the folders of the "
+                + "last level are not asked: an external disk may sleep or be slow, so that one folder takes seconds to open and holds the "
+                + "whole search back, and the folders of notes that were measured at the last level were all under the home directory. "
+                + "A folder of notes there is found down to one level above the last (3 levels, 2 below /Volumes); a vault is found at "
+                + "every level. "
+                + "The search stops after about 1.5 seconds or 100,000 file system entries: 'complete' is then false, and there may be "
+                + "more folders than are listed. The vaults are looked for first; the folders of notes are looked into with what is "
+                + "left of that budget, the shallowest first and at most 2,000 entries for one folder, and one that was not looked into "
+                + "is not listed. The folders of the last level are asked after the others, at one entry for the folder and one for "
+                + "each entry read (the ones inside a folder of notes first), and one that was not asked is not listed. Every entry "
+                + "that the search reads is taken from the budget, so that the number of entries and the time both stop it at any point. "
+                + "A file system that does not answer (a disk that sleeps, a network drive that is gone) does not hold the request: it waits "
+                + "for the search at most 250 ms longer than the 1.5 seconds, and then for the counting of the folders found at most 250 ms "
+                + "longer than its 400 ms. If a call of the file system has not returned by then, the request is answered with the folders "
+                + "that the search had found so far (every vault the walk had met, the folders of notes of the stages that were over), with "
+                + "'complete' false and without 'markdownCount' (they were not counted); the search goes on until the call returns, what it "
+                + "finds then is thrown away, and no other search starts "
+                + "meanwhile (every request is answered with those same folders). Such an answer is not remembered: the first request after "
+                + "the file system answers again searches anew. "
+                + "The result of a search that ended is remembered in memory for 60 seconds; 'listed' always says what the sources are now. "
+                + "The folders come sorted by 'name' (ignoring case, in Turkish alphabetical order) and, for the same name, by "
+                + "'display', in the form of the folders of GET /api/browse ('kind', 'markdownCount', 'more' and 'listed' are told the "
+                + "same way, 'markdownCount' with the same budget and the same limit for one folder; 'kind' is Notes only here, and a "
+                + "folder of notes that a source left to 'auto' would take for a Claude Code folder is Claude). Nothing is written. "
+                + "Who may ask, and the problem details of a refusal (403 Remote, CommandLine, CrossOrigin), are those of GET /api/browse.")
             .Produces<FoundResponse>(StatusCodes.Status200OK);
 
         return routes;
@@ -112,7 +145,7 @@ internal static class BrowseEndpoints
             BrowsePaths.Parent(folder)));
     }
 
-    /// <summary>Find the vaults of this machine</summary>
+    /// <summary>Find the vaults and folders of notes of this machine</summary>
     /// <param name="registry">The sources, to tell which folders are shown already.</param>
     /// <param name="finder">The search, which remembers its result.</param>
     /// <param name="cancellationToken">Set when the request is gone.</param>

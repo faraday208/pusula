@@ -78,10 +78,19 @@ internal static class FolderLister
             path,
             BrowsePaths.Display(path, home),
             Listed: false,
-            profile == SourceProfile.Markdown ? null : profile,
+            KindOf(profile),
             count?.Count,
             count is { More: true } ? true : null);
     }
+
+    // The kinds that a listing knows: a vault and a Claude Code folder. Any other folder has none (a folder of notes that is recognized by
+    // its content gets its kind from the search for folders, which has read what is in it).
+    private static FolderKind? KindOf(SourceProfile profile) => profile switch
+    {
+        SourceProfile.Vault => FolderKind.Vault,
+        SourceProfile.Claude => FolderKind.Claude,
+        _ => null,
+    };
 
     // Hidden folders are left out unless asked for: but the .claude of the home directory is the one that is wanted most.
     private static bool IsListed(DirectoryInfo directory, bool includeHidden, bool isHome)

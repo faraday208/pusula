@@ -6,6 +6,11 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Choose folder…** also finds folders of linked notes that have no `.obsidian/` folder, recognized by their content
+  (an entry note, mostly Markdown files, wikilinks between the notes), and labels them "notes".
+
 ### Changed
 
 - On Windows, **Choose folder…** also searches fixed and removable drives (system folders left out) and treats folders

@@ -64,6 +64,22 @@ public sealed class SearchRootTests
     }
 
     [Fact]
+    public void ProbesLastLevel_RootThatSaysNothing_DoesNotAskItsLastLevel() =>
+        new SearchRoot("/drive", MaxDepth: 4).ProbesLastLevel.ShouldBeFalse();
+
+    [Fact]
+    public void Equals_RootsThatDifferInAskingTheirLastLevel_AreNotEqual()
+    {
+        var asking = new SearchRoot("/drive", MaxDepth: 4) { ProbesLastLevel = true };
+        var other = new SearchRoot("/drive", MaxDepth: 4);
+
+        asking.Equals(other).ShouldBeFalse();
+        (asking == other).ShouldBeFalse();
+        asking.Equals(new SearchRoot("/drive", MaxDepth: 4) { ProbesLastLevel = true }).ShouldBeTrue();
+        asking.GetHashCode().ShouldBe(new SearchRoot("/drive", MaxDepth: 4) { ProbesLastLevel = true }.GetHashCode());
+    }
+
+    [Fact]
     public void Equals_RootsThatDifferInPathDepthOrNames_AreNotEqual()
     {
         var root = new SearchRoot("/drive", MaxDepth: 4) { SkippedAtTop = ["a", "b"] };

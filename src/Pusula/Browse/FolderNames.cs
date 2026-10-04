@@ -11,6 +11,9 @@ internal static class FolderNames
 
     private static readonly CompareInfo Turkish = FindTurkish(CultureInfo.GetCultureInfo);
 
+    // Folders of a project that hold what is built or fetched and not notes; the hidden ones (.git among them) are never entered anyway.
+    private static readonly string[] BuildFolders = [IndexBuilder.NodeModulesDirectory, "bin", "obj"];
+
     /// <summary>
     /// Whether the name is that of a hidden folder: it starts with a dot. This is the rule of the index and of the count of
     /// Markdown files, which leave out hidden files and folders by their names; the folders that the browser lists and the
@@ -29,6 +32,32 @@ internal static class FolderNames
     /// <param name="folder">The folder. On Windows one that came from a listing has its attributes already, so asking costs nothing.</param>
     public static bool IsHidden(DirectoryInfo folder) =>
         IsHidden(folder.Name) || (OperatingSystem.IsWindows() && HasHiddenAttribute(folder.Attributes));
+
+    /// <summary>
+    /// Whether the search for folders leaves a folder alone, wherever it is: a hidden one (see <see cref="IsHidden(DirectoryInfo)"/>),
+    /// or <c>node_modules</c>, <c>bin</c> or <c>obj</c>, which hold what is built or fetched and not notes. The look into a folder
+    /// that may be a folder of notes (see <see cref="NoteFolderScanner"/>) leaves out the same ones.
+    /// </summary>
+    /// <param name="folder">The folder, one that came from a listing.</param>
+    public static bool IsLeftOutOfSearch(DirectoryInfo folder)
+    {
+        if (IsHidden(folder))
+        {
+            return true;
+        }
+
+        // Asked of every folder the search comes across, so no closure and no allocation.
+        string name = folder.Name;
+        foreach (string skipped in BuildFolders)
+        {
+            if (string.Equals(skipped, name, PathComparison.Current))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Whether the attributes of a folder make it hidden on Windows: they include Hidden or System.</summary>
     /// <param name="attributes">The attributes of the folder.</param>

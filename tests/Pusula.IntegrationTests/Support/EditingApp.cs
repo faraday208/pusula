@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Pusula.Browse;
 using Pusula.Indexing;
@@ -63,6 +64,9 @@ internal sealed class EditingApp : IAsyncDisposable
     /// <summary>The clock that tells how old the result of a search is; null (the default) for the real one.</summary>
     internal TimeProvider? Time { get; set; }
 
+    /// <summary>What a test does to the host last: its settings (what the command line would set), its logging providers; nothing by default.</summary>
+    internal Action<IWebHostBuilder>? ConfigureHost { get; set; }
+
     public HttpClient Client => _client ?? throw new InvalidOperationException("The application is not started.");
 
     public ISourceRegistry Registry => (_factory ?? throw new InvalidOperationException("The application is not started.")).Services.GetRequiredService<ISourceRegistry>();
@@ -115,7 +119,7 @@ internal sealed class EditingApp : IAsyncDisposable
     public async Task StartAsync()
     {
         _factory = Root is null
-            ? PusulaFactory.FromSourcesFile(SourcesFile, Directories, simulateConnection: true, scanLimits: Limits, allowRemoteEdit: AllowRemoteEdit, configureServices: ConfigureBrowser)
+            ? PusulaFactory.FromSourcesFile(SourcesFile, Directories, simulateConnection: true, scanLimits: Limits, allowRemoteEdit: AllowRemoteEdit, configureServices: ConfigureBrowser, configureHost: ConfigureHost)
             : new PusulaFactory(Root, simulateConnection: true, directories: Directories, scanLimits: Limits, allowRemoteEdit: AllowRemoteEdit, configureServices: ConfigureBrowser);
         _client = _factory.CreateClient();
         using HttpResponseMessage started = await _client.GetAsync("/health", TestContext.Current.CancellationToken);
