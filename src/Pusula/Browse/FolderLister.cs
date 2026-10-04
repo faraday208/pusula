@@ -70,6 +70,12 @@ internal static class FolderLister
     /// <param name="cancellationToken">Stops the counting when the request is gone.</param>
     public static BrowseFolder Describe(string path, string? home, BrowseLimits limits, ScanBudget budget, CancellationToken cancellationToken)
     {
+        // A folder that is a link to a network location is not looked into: what it looks like is what is in it, and that is not read (see LinkGuard).
+        if (!LinkGuard.MayFollow(new DirectoryInfo(path)))
+        {
+            return new BrowseFolder(SourceIds.NameOf(path), path, BrowsePaths.Display(path, home), Listed: false);
+        }
+
         // "Markdown" is every folder that is neither a vault nor a Claude Code folder: it has no kind.
         SourceProfile profile = SourceProfiles.Detect(path);
         MarkdownCount? count = MarkdownCounter.Count(path, profile, limits.MaxMarkdownFiles, limits.CountEntriesPerFolder, budget, cancellationToken);
@@ -95,7 +101,8 @@ internal static class FolderLister
     // Hidden folders are left out unless asked for: but the .claude of the home directory is the one that is wanted most.
     private static bool IsListed(DirectoryInfo directory, bool includeHidden, bool isHome)
     {
-        if (FolderNames.IsNodeModules(directory.Name))
+        // A link that leads to a network location is not followed, and so not listed (see LinkGuard): to describe it is to open it.
+        if (FolderNames.IsNodeModules(directory.Name) || !LinkGuard.MayFollow(directory))
         {
             return false;
         }

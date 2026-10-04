@@ -61,11 +61,16 @@ internal static class FolderWalk
     /// </summary>
     /// <param name="folder">The folder.</param>
     /// <param name="parentRealPath">The real path of the folder that <paramref name="folder"/> is in; null for the folder a scan starts with.</param>
-    /// <returns>The real path; null when the folder cannot be resolved (a chain of links that never ends, one that cannot be read).</returns>
+    /// <returns>The real path; null when the folder cannot be resolved (a chain of links that never ends, one that cannot be read, a link that leads to a network location, which is never followed: see <see cref="LinkGuard"/>).</returns>
     public static string? RealPath(DirectoryInfo folder, string? parentRealPath)
     {
         try
         {
+            if (!LinkGuard.MayFollow(folder))
+            {
+                return null;
+            }
+
             if (folder.LinkTarget is not null)
             {
                 return folder.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? folder.FullName;

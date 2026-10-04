@@ -94,6 +94,8 @@ browse your folders, whatever the setting, and the server answers only to IP add
 - **Recognizing note folders reads a little of your notes.** To tell a folder of notes that has no `.obsidian/` folder,
   **Choose folder…** reads the first few kilobytes of some of its notes (at most 20 per folder) and only looks for a
   wikilink. This happens on this computer only; nothing of what it reads is kept or sent anywhere.
+- **Links to network locations are never followed.** A symbolic link that leads to a network path (a `\\server\share`
+  path on Windows) is skipped and never opened, so a folder that someone else made cannot make pusula contact a server.
 - **Local-first.** No accounts, no telemetry, no network access needed; the JavaScript libraries are in the repository.
 
 ## Limits

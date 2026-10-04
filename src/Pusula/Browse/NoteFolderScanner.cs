@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Win32.SafeHandles;
+using Pusula.Indexing;
 
 namespace Pusula.Browse;
 
@@ -264,6 +265,12 @@ internal static class NoteFolderScanner
         try
         {
             var note = new FileInfo(path);
+
+            // A link that leads to a network location is not followed, not even to see whether there is a file (see LinkGuard): the note is no part of the sample.
+            if (!LinkGuard.MayFollow(note))
+            {
+                return null;
+            }
 
             // A link is judged by the file it leads to. The length of a link is its own, which says nothing about that: on Windows it is none, whatever the file
             // holds (so that a note that is a link was never read), and elsewhere it is the length of the path it holds, which is never none (so that a link to a

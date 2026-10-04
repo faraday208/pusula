@@ -398,14 +398,15 @@ public sealed class NoteFolderScannerTests
         }
     }
 
-    // Looks into a folder on a thread of its own and waits a while for it: a scan that opened a pipe never comes back, and that has to fail the test and not hang it.
-    private static async Task<NoteFolderCheck> LookedWithinAWhile(string folder)
+    // Looks into a folder on a thread of its own and waits a while for it: a scan that opened a pipe never comes back, nor one that went to a network address
+    // that nothing answers at, and that has to fail the test and not hang it.
+    private static async Task<NoteFolderCheck> LookedWithinAWhile(string folder, string because = "It is waiting on a pipe that it should not have opened.")
     {
         Task<NoteFolderCheck> look = Task.Run(() => Looked(folder, sampleAlways: true), TestContext.Current.CancellationToken);
 
         Task first = await Task.WhenAny(look, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
 
-        first.ShouldBeSameAs(look, "The scan did not come back: it is waiting on a pipe that it should not have opened.");
+        first.ShouldBeSameAs(look, "The scan did not come back. " + because);
         return await look;
     }
 
@@ -454,6 +455,46 @@ public sealed class NoteFolderScannerTests
 
         // The length of a link is its own, not the length of what it leads to: the guard has to look at the target.
         (await LookedWithinAWhile(temp.Resolve("home"))).ShouldBe(new NoteFolderCheck(Notes: 2, Files: 2, Sampled: 2, Linked: 1));
+    }
+
+    // ---- Links into the network are not followed --------------------------------------------------------------------
+
+    [Fact]
+    public void Scan_NoteThatIsALinkIntoTheNetwork_IsNoPartOfTheSampleAndIsNotRead()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("home/open.md", "[[x]]");
+        temp.Write("net/target.md", "[[y]]");
+        TestLinks.ToFile(temp.Resolve("home/network.md"), temp.Resolve("net/target.md"));
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        // The note is there to be counted, and it is not opened: read, it would be one more note with a wikilink in the sample.
+        Looked(temp.Resolve("home"), sampleAlways: true).ShouldBe(new NoteFolderCheck(Notes: 2, Files: 2, Sampled: 1, Linked: 1));
+    }
+
+    [Fact]
+    public void Scan_FolderThatIsALinkIntoTheNetwork_IsNotEntered()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("home/open.md", "[[x]]");
+        temp.Write("net/inside/a.md", "[[y]]");
+        TestLinks.ToFolder(temp.Resolve("home/network"), temp.Resolve("net/inside"));
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        Looked(temp.Resolve("home"), sampleAlways: true).ShouldBe(new NoteFolderCheck(Notes: 1, Files: 1, Sampled: 1, Linked: 1));
+    }
+
+    [Fact]
+    public async Task Scan_Windows_LinksToAShare_AreNeitherOpenedNorEntered()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs Windows and its network paths.");
+        using var temp = new TempDirectory();
+        temp.Write("home/open.md", "[[x]]");
+        TestLinks.ToFile(temp.Resolve("home/share.md"), @"\\192.0.2.1\share\x.md");
+        TestLinks.ToFolder(temp.Resolve("home/folder"), @"\\192.0.2.1\share\folder");
+
+        // Nothing answers at the address: a scan that went there would not be back in a long time.
+        (await LookedWithinAWhile(temp.Resolve("home"), "It went to the network.")).ShouldBe(new NoteFolderCheck(Notes: 2, Files: 2, Sampled: 1, Linked: 1));
     }
 
     // ---- Asking a folder for an entry note ------------------------------------------------------------------------

@@ -32,6 +32,57 @@ public sealed class FolderListerTests
         }
     }
 
+    // ---- Links into the network are not followed ---------------------------------------------------------------
+
+    [Fact]
+    public void List_FolderThatIsALinkIntoTheNetwork_IsNotListedAndOneToWhatIsHereIs()
+    {
+        using var temp = new TempDirectory();
+        temp.CreateDirectory("home/Local");
+        temp.CreateDirectory("net/Vault/.obsidian");
+        TestLinks.ToFolder(temp.Resolve("home/network"), temp.Resolve("net/Vault"));
+        TestLinks.ToFolder(temp.Resolve("home/other"), temp.Resolve("home/Local"));
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        Names(List(temp.Resolve("home"))).ShouldBe(["Local", "other"]);
+    }
+
+    [Fact]
+    public void Describe_FolderThatIsALinkIntoTheNetwork_IsNotLookedInto()
+    {
+        using var temp = new TempDirectory();
+        temp.CreateDirectory("net/Vault/.obsidian");
+        temp.Write("net/Vault/a.md", "x");
+        temp.CreateDirectory("home");
+        TestLinks.ToFolder(temp.Resolve("home/network"), temp.Resolve("net/Vault"));
+        var budget = new ScanBudget(maxEntries: int.MaxValue, TimeSpan.FromMinutes(10));
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        BrowseFolder described = FolderLister.Describe(temp.Resolve("home/network"), home: null, BrowseLimits.Default, budget, TestContext.Current.CancellationToken);
+
+        // What the folder looks like is what is in it, which is not read: it is a vault, behind the link, and not a word of that is known.
+        described.Name.ShouldBe("network");
+        described.Kind.ShouldBeNull();
+        described.MarkdownCount.ShouldBeNull();
+        budget.Taken.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task List_Windows_FolderThatIsALinkToAShare_IsNotListed()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs Windows and its network paths.");
+        using var temp = new TempDirectory();
+        temp.CreateDirectory("home/Local");
+        TestLinks.ToFolder(temp.Resolve("home/share"), @"\\192.0.2.1\share\folder");
+
+        // Nothing answers at the address: a listing that went there would not be back in a long time.
+        Task<FolderListing> listing = Task.Run(() => List(temp.Resolve("home")), TestContext.Current.CancellationToken);
+        Task first = await Task.WhenAny(listing, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        first.ShouldBeSameAs(listing, "The listing did not come back: it went to the network.");
+        Names(await listing).ShouldBe(["Local"]);
+    }
+
     // ---- What is listed -----------------------------------------------------------------------------------------
 
     [Fact]

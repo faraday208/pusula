@@ -22,6 +22,13 @@ All notable changes to pusula are listed here. The format follows
 - A folder written after the options on the command line (`--urls … ~/notes`) was silently ignored and the server
   showed the list of sources instead; pusula now stops with one line that says folders go before the options.
 
+### Security
+
+- Symbolic links that lead to a network location (a `\\server\share` path on Windows) are no longer followed when
+  searching, listing, counting or indexing folders. Opening one makes Windows log on to that server with the user's
+  credentials, and a link in a folder that someone else made, a cloned repository for one, could use that to collect
+  a hash of them. Such a link is skipped, as an entry that cannot be read.
+
 ## [0.1.0] - 2026-10-03
 
 The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).

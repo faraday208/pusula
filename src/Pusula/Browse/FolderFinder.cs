@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using Pusula.Indexing;
 using Pusula.Sources;
 using Pusula.Startup;
 
@@ -47,6 +48,12 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
     /// of the tests, which make a folder stall to see that a request does not wait for it (see <see cref="FolderWalk.Use"/>).
     /// </summary>
     internal Func<string, IEnumerable<FileSystemInfo>>? Listing { get; init; }
+
+    /// <summary>
+    /// How the search tells a network location, which a link must not lead to, when something other than the system is to say; the system's way when null.
+    /// The extension point of the tests (see <see cref="LinkGuard.Use"/>).
+    /// </summary>
+    internal Func<string, bool>? NetworkLocation { get; init; }
 
     /// <summary>
     /// Gives the folders that were found: the result of the last search while it is not older than the cache lifetime,
@@ -135,6 +142,7 @@ internal sealed partial class FolderFinder(UserDirectories directories, DriveFol
         try
         {
             using (FolderWalk.Use(Listing))
+            using (LinkGuard.Use(NetworkLocation))
             {
                 result = Search(running);
             }

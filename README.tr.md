@@ -94,6 +94,8 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
 - **Not klasörlerini tanımak notlarının küçük bir kısmını okur.** `.obsidian/` klasörü olmayan bir not klasörünü ayırt
   etmek için **Klasör seç…** notlarından bazılarının (klasör başına en çok 20) ilk birkaç kilobaytını okur ve yalnız
   wikilink arar. Bu yalnızca bu bilgisayarda olur; okuduğundan hiçbir şey saklanmaz ya da bir yere gönderilmez.
+- **Ağ konumlarına giden bağlar izlenmez.** Bir ağ yoluna (Windows'ta `\\sunucu\paylaşım` biçimi) giden sembolik bağ
+  atlanır ve hiç açılmaz; böylece başkasının hazırladığı bir klasör pusula'yı bir sunucuya bağlanmaya zorlayamaz.
 - **Yerel öncelikli.** Hesap yok, telemetri yok, ağ gerekmez; JavaScript kütüphaneleri repoda.
 
 ## Sınırlar

@@ -39,6 +39,22 @@ public sealed class MarkdownCounterTests
     }
 
     [Fact]
+    public void Count_FolderThatIsALinkIntoTheNetwork_IsNotEnteredAndHasNoCountOfItsOwn()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("home/a.md", "x");
+        temp.Write("net/inside/b.md", "x");
+        temp.Write("elsewhere/c.md", "x");
+        TestLinks.ToFolder(temp.Resolve("home/network"), temp.Resolve("net/inside"));
+        TestLinks.ToFolder(temp.Resolve("home/here"), temp.Resolve("elsewhere"));
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        // The folder with the link in it counts what it can read; the link itself is a folder that is not read at all.
+        Count(temp.Resolve("home")).ShouldBe(new MarkdownCount(2, More: false));
+        Count(temp.Resolve("home/network")).ShouldBeNull();
+    }
+
+    [Fact]
     public void Count_MarkdownFilesAtAnyDepth_AreCounted()
     {
         using var temp = new TempDirectory();

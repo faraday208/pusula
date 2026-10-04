@@ -24,7 +24,8 @@ public sealed partial class FolderFinderTests
         TimeProvider? time = null,
         string? home = null,
         ILogger<FolderFinder>? logger = null,
-        Func<string, IEnumerable<FileSystemInfo>>? listing = null) =>
+        Func<string, IEnumerable<FileSystemInfo>>? listing = null,
+        Func<string, bool>? networkLocation = null) =>
         new(
             new UserDirectories(home ?? Home(temp), string.Empty),
             drives ?? DriveFolders.None,
@@ -33,6 +34,7 @@ public sealed partial class FolderFinderTests
             logger ?? NullLogger<FolderFinder>.Instance)
         {
             Listing = listing,
+            NetworkLocation = networkLocation,
         };
 
     private static string[] Paths(FoundFolders found) => [.. found.Folders.Select(folder => folder.Path)];

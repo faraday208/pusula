@@ -157,6 +157,70 @@ public sealed class IndexBuilderFileSystemTests
     }
 
     [Fact]
+    public void Build_FolderAndFileLinksIntoTheNetwork_AreSkippedWithAWarningAndNothingInThemIsRead()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("root/rules/ok.md", "x");
+        temp.Write("net/folder/inside.md", "x");
+        temp.Write("net/x.md", "x");
+        temp.Write("elsewhere/here.md", "x");
+        TestLinks.ToFolder(temp.Resolve("root/rules/network-folder"), temp.Resolve("net/folder"));
+        TestLinks.ToFile(temp.Resolve("root/rules/network-file.md"), temp.Resolve("net/x.md"));
+        TestLinks.ToFolder(temp.Resolve("root/rules/local-folder"), temp.Resolve("elsewhere"));
+        var logger = new CapturingLogger<IndexBuilder>();
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        ConfigIndex index = Build(temp.Resolve("root"), logger);
+
+        Keys(index).ShouldBe(["rules/local-folder/here.md", "rules/ok.md"], ignoreOrder: true);
+        logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Warning && entry.Message.Contains("network-folder", StringComparison.Ordinal));
+        logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Warning && entry.Message.Contains("network-file.md", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Build_RootThatIsALinkIntoTheNetwork_IsRefusedLikeAFolderThatIsNotThere()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("net/folder/a.md", "x");
+        TestLinks.ToFolder(temp.Resolve("root-link"), temp.Resolve("net/folder"));
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        Should.Throw<DirectoryNotFoundException>(() => Build(temp.Resolve("root-link")));
+    }
+
+    [Fact]
+    public void Build_SettingsFileThatIsALinkIntoTheNetwork_IsNotRead()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("net/settings.json", """{ "outputStyle": "x" }""");
+        temp.Write("root/a.md", "x");
+        TestLinks.ToFile(temp.Resolve("root/settings.json"), temp.Resolve("net/settings.json"));
+        var logger = new CapturingLogger<IndexBuilder>();
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        Keys(Build(temp.Resolve("root"), logger)).ShouldBe(["a.md"]);
+        logger.Entries.ShouldContain(entry => entry.Level == LogLevel.Warning && entry.Message.Contains("settings.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Build_Windows_LinksToAShare_AreSkippedWithoutGoingThere()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs Windows and its network paths.");
+        using var temp = new TempDirectory();
+        temp.Write("root/rules/ok.md", "x");
+        TestLinks.ToFolder(temp.Resolve("root/rules/share-folder"), @"\\192.0.2.1\share\folder");
+        TestLinks.ToFile(temp.Resolve("root/rules/share-file.md"), @"\\192.0.2.1\share\x.md");
+        TestLinks.ToFile(temp.Resolve("root/settings.json"), @"\\192.0.2.1\share\settings.json");
+
+        // Nothing answers at the address: an index that went there would not be built in a long time.
+        Task<ConfigIndex> build = Task.Run(() => Build(temp.Resolve("root")), TestContext.Current.CancellationToken);
+        Task first = await Task.WhenAny(build, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        first.ShouldBeSameAs(build, "The index was not built: it went to the network.");
+        Keys(await build).ShouldBe(["rules/ok.md"]);
+    }
+
+    [Fact]
     public void Build_DanglingAndLoopingFileLinks_AreSkippedWithAWarning()
     {
         using var temp = new TempDirectory();

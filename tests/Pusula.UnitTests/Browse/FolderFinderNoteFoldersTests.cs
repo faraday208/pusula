@@ -230,6 +230,91 @@ public sealed partial class FolderFinderTests
         Paths(Finder(temp, drives).Find(TestContext.Current.CancellationToken)).ShouldBe([temp.Resolve("volumes/a/b/Level3")]);
     }
 
+    // ---- Links into the network are not followed --------------------------------------------------------------------
+
+    [Fact]
+    public void Find_FoldersThatAreLinksIntoTheNetwork_AreNotOpenedAndWhatIsInThemIsNotFound()
+    {
+        using var temp = new TempDirectory();
+        MakeVault(temp, "home/Local");
+        MakeVault(temp, "net/Vault");
+        MakeNotes(temp, "net/Notes", notes: 12);
+        MakeNotes(temp, "net/Deep", notes: 12);
+        temp.CreateDirectory("home/a/b/c");
+        TestLinks.ToFolder(temp.Resolve("home/network"), temp.Resolve("net"));
+        TestLinks.ToFolder(temp.Resolve("home/a/b/c/Last"), temp.Resolve("net/Deep"));
+        var recorder = new StalledFolder(folder: null);
+        FolderFinder finder = Finder(temp, listing: recorder.Listing, networkLocation: FakeNetwork.At(temp.Resolve("net")));
+
+        FoundFolders found = finder.Find(TestContext.Current.CancellationToken);
+
+        // Not opened, at any level: the link in the middle of the walk and the one at its last level, which would have been asked for an entry note.
+        Paths(found).ShouldBe([temp.Resolve("home/Local")]);
+        found.Complete.ShouldBeTrue();
+        recorder.Listings(temp.Resolve("home/network")).ShouldBe(0);
+        recorder.Listings(temp.Resolve("home/a/b/c/Last")).ShouldBe(0);
+        recorder.Listings(temp.Resolve("net")).ShouldBe(0);
+    }
+
+    [Fact]
+    public void Find_FoldersThatAreLinksToWhatIsHere_AreFollowedAsBefore()
+    {
+        using var temp = new TempDirectory();
+        MakeVault(temp, "elsewhere/Vault");
+        temp.CreateDirectory("home");
+        TestLinks.ToFolder(temp.Resolve("home/linked"), temp.Resolve("elsewhere"));
+
+        FoundFolders found = Finder(temp, networkLocation: FakeNetwork.At(temp.Resolve("net"))).Find(TestContext.Current.CancellationToken);
+
+        Paths(found).ShouldBe([temp.Resolve("home/linked/Vault")]);
+    }
+
+    [Fact]
+    public void Visit_FolderThatIsALinkIntoTheNetwork_IsNeitherQueuedNorLookedInto()
+    {
+        using var temp = new TempDirectory();
+        MakeVault(temp, "net/Vault");
+        temp.CreateDirectory("net/.obsidian");
+        temp.CreateDirectory("home");
+        TestLinks.ToFolder(temp.Resolve("home/network"), temp.Resolve("net"));
+        var queue = new Queue<FolderFinder.Level>();
+        var walked = new FolderFinder.WalkFindings();
+        using IDisposable network = FakeNetwork.In(temp.Resolve("net"));
+
+        FolderFinder.Visit(new FolderFinder.Level(temp.Resolve("home"), temp.Resolve("home"), Depth: 1, MaxDepth: 4), new ScanBudget(maxEntries: 100, TimeSpan.FromMinutes(1)), new HashSet<string>(), queue, walked);
+
+        // The link has a .obsidian directory behind it, which would have made it a vault.
+        queue.ShouldBeEmpty();
+        walked.Vaults.ShouldBeEmpty();
+        walked.Deepest.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Find_Windows_FolderThatIsALinkToAShare_IsNotOpened()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Needs Windows and its network paths.");
+        using var temp = new TempDirectory();
+        MakeVault(temp, "home/Local");
+        temp.CreateDirectory("home/a/b/c");
+        TestLinks.ToFolder(temp.Resolve("home/share"), @"\\192.0.2.1\share\folder");
+        TestLinks.ToFolder(temp.Resolve("home/a/b/c/Last"), @"\\192.0.2.1\share\folder");
+        var recorder = new StalledFolder(folder: null);
+        FolderFinder finder = Finder(temp, listing: recorder.Listing);
+
+        // A search that went to the address would not be back in time: it would give up on it, and say that it is not complete.
+        Task<FoundFolders> search = Task.Run(() => finder.Find(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+        Task first = await Task.WhenAny(search, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        first.ShouldBeSameAs(search);
+        FoundFolders found = await search;
+        Paths(found).ShouldBe([temp.Resolve("home/Local")]);
+        found.Complete.ShouldBeTrue();
+
+        // Nor was either of the two links opened, which the folders that were listed say.
+        recorder.Listings(temp.Resolve("home/share")).ShouldBe(0);
+        recorder.Listings(temp.Resolve("home/a/b/c/Last")).ShouldBe(0);
+    }
+
     // ---- Which roots ask their last level --------------------------------------------------------------------------
 
     [Fact]

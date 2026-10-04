@@ -22,6 +22,9 @@ internal sealed partial class IndexBuilder
     /// <summary>The one directory name that a folder of notes does not enter (besides the hidden ones).</summary>
     internal const string NodeModulesDirectory = "node_modules";
 
+    // Why a link was not followed (see LinkGuard): a link that leads to a network location, one that goes through too many links and one that cannot be looked at are treated alike.
+    private const string NotFollowed = "the link leads to a network location or goes too far, and is not followed";
+
     private static readonly string[] SkippedTopLevelDirectories =
     [
         "plugins", "cache", "file-history", "sessions", "debug", "backups", "paste-cache", "chrome", "ide", "jobs",
@@ -96,6 +99,12 @@ internal sealed partial class IndexBuilder
         if (!Directory.Exists(fullRoot))
         {
             throw new DirectoryNotFoundException($"The configuration root '{fullRoot}' does not exist or is not a directory.");
+        }
+
+        // A root that is a link to a network location is not followed (see LinkGuard): it is as good as missing.
+        if (!LinkGuard.MayFollow(new DirectoryInfo(fullRoot)))
+        {
+            throw new DirectoryNotFoundException($"The configuration root '{fullRoot}' is a link that is not followed: {NotFollowed}.");
         }
 
         string? outputStyle = notes ? null : ReadOutputStyle(fullRoot);
@@ -260,6 +269,13 @@ internal sealed partial class IndexBuilder
 
     private void WalkChild(DirectoryInfo child, string relativePath, string parentRealPath, WalkMode mode, Scan scan)
     {
+        // A link to a network location is not followed, not even to see what is there (see LinkGuard).
+        if (!LinkGuard.MayFollow(child))
+        {
+            LogSkipped(relativePath, NotFollowed);
+            return;
+        }
+
         string childRealPath;
         try
         {
@@ -319,6 +335,13 @@ internal sealed partial class IndexBuilder
         if (++scan.MarkdownFiles > Limits.MaxFiles)
         {
             throw FolderTooLargeException.ForFiles(scan.Root, Limits.MaxFiles);
+        }
+
+        // A file that is a link to a network location is not opened (see LinkGuard).
+        if (!LinkGuard.MayFollow(file))
+        {
+            LogSkipped(relativePath, NotFollowed);
+            return;
         }
 
         try
@@ -381,6 +404,12 @@ internal sealed partial class IndexBuilder
             return null;
         }
 
+        if (!LinkGuard.MayFollow(new FileInfo(path)))
+        {
+            LogSkipped("settings.json", NotFollowed);
+            return null;
+        }
+
         try
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
@@ -425,11 +454,13 @@ internal sealed partial class IndexBuilder
     /// <summary>
     /// Existence probe for link targets. Callers pass normalized root-relative paths that stay inside the root.
     /// Path.Join (not Path.Combine) is used so that a rooted or drive-qualified value can never replace the root.
+    /// A path that goes through a folder that is a link to a network location is not probed, and does not exist as far as the probe can say (see
+    /// <see cref="LinkGuard"/>): the text of a note is enough to make it a path.
     /// </summary>
     internal static bool PathExists(string root, string relativePath)
     {
         string fullPath = Path.Join(root, relativePath);
-        return File.Exists(fullPath) || Directory.Exists(fullPath);
+        return LinkGuard.MayTouch(root, relativePath) && (File.Exists(fullPath) || Directory.Exists(fullPath));
     }
 
     // A file of a kind that should be linked to is an orphan when nothing links to it. A note (a vault or a folder of

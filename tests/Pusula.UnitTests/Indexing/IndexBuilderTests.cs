@@ -546,6 +546,27 @@ public sealed class IndexBuilderTests
     }
 
     [Fact]
+    public void PathExists_PathThroughAFolderThatIsALinkIntoTheNetwork_DoesNotExistAsFarAsTheProbeCanSay()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("root/here/x.md", "x");
+        temp.Write("net/x.md", "x");
+        TestLinks.ToFolder(temp.Resolve("root/evil"), temp.Resolve("net"));
+        TestLinks.ToFolder(temp.Resolve("root/ok"), temp.Resolve("root/here"));
+        string root = temp.Resolve("root");
+
+        // The text of a note is enough to make such a path, so that it is not looked at: the file is there, behind the link, and the probe does not go to see.
+        using (FakeNetwork.In(temp.Resolve("net")))
+        {
+            IndexBuilder.PathExists(root, "evil/x.md").ShouldBeFalse();
+            IndexBuilder.PathExists(root, "evil").ShouldBeFalse();
+            IndexBuilder.PathExists(root, "ok/x.md").ShouldBeTrue();
+        }
+
+        IndexBuilder.PathExists(root, "evil/x.md").ShouldBeTrue();
+    }
+
+    [Fact]
     public void PathExists_RootedValue_NeverEscapesTheRoot()
     {
         using var temp = new TempDirectory();
