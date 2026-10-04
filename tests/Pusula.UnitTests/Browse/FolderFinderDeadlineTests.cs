@@ -222,6 +222,61 @@ public sealed partial class FolderFinderTests
     }
 
     [Fact]
+    public void Find_StuckCallAfterAFolderOfNotesWithSubfoldersOfNotes_GivesTheFolderAndNotItsSubfoldersAsTheFinalAnswerDoes()
+    {
+        using var temp = new TempDirectory();
+        MakeDocsWithTwoSubfolders(temp, "home/Docs");
+        MakeNotes(temp, "home/p/q/r/Stuck", notes: 12);
+        string stuck = temp.Resolve("home/p/q/r/Stuck");
+        var stalled = new StalledFolder(stuck);
+        FolderFinder finder = Finder(temp, limits: Quick, listing: stalled.Listing);
+        try
+        {
+            FoundFolders found = finder.Find(TestContext.Current.CancellationToken);
+
+            // What the candidates gave is settled the same way as the final answer: Guide and Reference lie inside Docs, which is listed, and are part of it.
+            found.Complete.ShouldBeFalse();
+            Paths(found).ShouldBe([temp.Resolve("home/Docs")]);
+
+            stalled.Release();
+            Paths(CompleteSearch(finder)).ShouldBe([temp.Resolve("home/Docs"), stuck], ignoreOrder: true);
+        }
+        finally
+        {
+            stalled.Release();
+        }
+    }
+
+    [Fact]
+    public void Find_StuckCallWhileTheVaultInsideAFolderOfNotesIsNotLookedInto_ListsTheFolderOfNotesInsideItAndTheVaultAndLaterOnlyTheFolderAroundThem()
+    {
+        using var temp = new TempDirectory();
+        MakeNotes(temp, "home/Project", notes: 12);
+        MakeNotes(temp, "home/Project/Guide", notes: 12);
+        MakeVault(temp, "home/Project/Vault");
+        WriteNotes(temp, "home/Project/Vault", "v", count: 2, linked: 2);
+        MakeNotes(temp, "home/p/q/r/Stuck", notes: 12);
+        string stuck = temp.Resolve("home/p/q/r/Stuck");
+        var stalled = new StalledFolder(stuck);
+        FolderFinder finder = Finder(temp, limits: Quick, listing: stalled.Listing);
+        try
+        {
+            FoundFolders found = finder.Find(TestContext.Current.CancellationToken);
+
+            // What the vault holds of the notes of Project is not known yet, which keeps Project out; Guide does not lie inside a folder of notes that is listed.
+            Paths(found).ShouldBe([temp.Resolve("home/Project/Guide"), temp.Resolve("home/Project/Vault")], ignoreOrder: true);
+
+            // The vault holds 2 of the 26 wikilinked notes of Project and Guide 12: Project is listed, with the vault next to it, and Guide is part of Project.
+            stalled.Release();
+            Paths(CompleteSearch(finder)).ShouldBe([temp.Resolve("home/Project"), temp.Resolve("home/Project/Vault"), stuck], ignoreOrder: true);
+        }
+        finally
+        {
+            stalled.Release();
+        }
+    }
+
+    [Fact]
     public async Task Find_RequestThatIsGoneWhileItWaits_StopsWaitingAndTheSearchGoesOnAndIsRemembered()
     {
         using var temp = new TempDirectory();

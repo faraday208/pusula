@@ -10,7 +10,8 @@ namespace Pusula.Browse;
 /// enough, whether a sample of them has a wikilink. The sample is at most <see cref="NoteFolderCheck.SampleSize"/> notes,
 /// spread over the folder: the paths of the notes are put in order and every n-th one is taken, so the same folder gives the
 /// same sample. Of each only the first <see cref="NoteFolderCheck.SampleBytes"/> bytes are read, to look for <c>[[</c>.
-/// The folder is only ever read, and what is in a note never leaves this class: only whether it has <c>[[</c>. A folder that the
+/// The folder is only ever read, and what is in a note never leaves this class: only whether it has <c>[[</c>. A note that is a
+/// symbolic link is read through the link, and judged by the file it leads to; one that leads to nothing is no part of the sample. A folder that the
 /// walk over the disk did not read (it is at the last level of the walk) is asked <see cref="HasEntryNote"/> before it is looked into.
 /// Everything here that reads a folder takes each entry it reads from the budget (and each note it opens), so that the budget, the
 /// time included, can stop it at any point.
@@ -256,13 +257,33 @@ internal static class NoteFolderScanner
         return (sampled, linked);
     }
 
-    // Whether the start of a note has "[["; null when it cannot be read (it went away, it is not ours to read): such a note is no part of the sample.
+    // Whether the start of a note has "[["; null when it cannot be read (it went away, it is not ours to read, it is a link to nothing): such a note is no
+    // part of the sample.
     private static bool? HasWikilink(string path, byte[] buffer)
     {
         try
         {
-            // A file with no length is empty, or none to read from (a pipe or a device, which opening would wait on for ever).
-            if (new FileInfo(path).Length == 0)
+            var note = new FileInfo(path);
+
+            // A link is judged by the file it leads to. The length of a link is its own, which says nothing about that: on Windows it is none, whatever the file
+            // holds (so that a note that is a link was never read), and elsewhere it is the length of the path it holds, which is never none (so that a link to a
+            // pipe was opened). A link that leads to nothing, or to a folder, leaves the note out of the sample.
+            long length;
+            if (note.LinkTarget is null)
+            {
+                length = note.Length;
+            }
+            else if (note.ResolveLinkTarget(returnFinalTarget: true) is FileInfo { Exists: true } target)
+            {
+                length = target.Length;
+            }
+            else
+            {
+                return null;
+            }
+
+            // A file with no length is empty, or none to read from (a pipe or a device, which opening would wait on for ever); so is what a link leads to.
+            if (length == 0)
             {
                 return false;
             }

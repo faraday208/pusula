@@ -14,10 +14,13 @@ namespace Pusula.Browse;
 /// it is shown. Only the folders below a root that asks its last level are among them (<see cref="SearchRoot.ProbesLastLevel"/>: the home
 /// directory and, on Windows, the system drive; the other drives may sleep or be slow, and opening a folder for each of them would hold the search
 /// back): with these a folder of notes is found as deep as a vault is, and below the other roots one level less deep. The third settles the
-/// folders that lie inside one another: a folder of notes that has a folder inside it (a
+/// folders that lie inside one another, in two parts. A folder of notes that has a folder inside it (a
 /// vault, or another folder of notes) that holds at least <see cref="NoteFolderCheck.InnerPercent"/> percent of its wikilinked
 /// notes (<see cref="NoteFolderCheck.Holds"/>) is not shown, the one inside is: a project folder with a README and a vault in it
-/// is the vault, not the project. A vault is never left out, and what a vault holds is looked into only when it lies inside a
+/// is the vault, not the project. Of the folders of notes that are left, only the ones that do not lie inside another are shown (see
+/// <see cref="TopMost"/>): a folder of notes inside a folder of notes that is shown is part of it, so that a folder of notes whose subfolders
+/// have index notes of their own is one row, and not a row for each. A vault is never left out by either part (it is no folder of notes), and
+/// is shown next to the folder of notes it lies in; what a vault holds is looked into only when it lies inside a
 /// folder of notes. Everything read comes from the budget of the search; a candidate that the budget did not reach is not shown,
 /// and neither is a folder of notes whose nesting the budget did not let be settled (a vault or a candidate inside it was not
 /// looked into): such a folder cannot be told from the parent of a vault. A folder of the last level that was not asked is not
@@ -78,12 +81,13 @@ internal static class NoteFolderSearch
         stats.NoteBudget(budget, "the settling of the folders that lie inside one another");
         return shown;
 
-        // The folders of notes that are not given way to by what lies inside them. A vault inside one is looked into only when asked to (that reads the
-        // vault, and takes from the budget); otherwise it counts as not looked into, which keeps the folder around it out, as a budget that ran out would.
+        // The folders of notes that are shown: the ones that are not given way to by what lies inside them (a vault inside one is looked into only when asked
+        // to, which reads the vault and takes from the budget; otherwise it counts as not looked into, which keeps the folder around it out, as a budget
+        // that ran out would), and of those only the ones that do not lie inside another.
         List<string> Shown(bool lookIntoVaults)
         {
             var nesting = new Nesting(qualified, unreached, walked.Vaults, limits, budget, cancellationToken);
-            return [.. qualified.Where(outer => !nesting.IsGivenWayTo(outer, lookIntoVaults)).Select(outer => outer.Path)];
+            return TopMost([.. qualified.Where(outer => !nesting.IsGivenWayTo(outer, lookIntoVaults)).Select(outer => outer.Path)]);
         }
 
         // A candidate that the budget does not reach is kept apart: it may be what a folder around it holds its notes in.
@@ -103,6 +107,36 @@ internal static class NoteFolderSearch
                 qualified.Add(new Qualified(candidate.Path, check.Value));
             }
         }
+    }
+
+    // Of the folders of notes that are shown, the ones that do not lie inside another of them. A folder of notes inside a folder of notes that is shown is part
+    // of it, and is not listed: a folder of documentation written as linked notes is one row, and not a row for each of its subfolders that has an index note.
+    // Only folders of notes are looked at, here: a vault inside one is never left out, and is listed next to it. Each is looked up by the folders above it.
+    private static List<string> TopMost(List<string> shown)
+    {
+        if (shown.Count < 2)
+        {
+            return shown;
+        }
+
+        var all = new HashSet<string>(shown, FolderWalk.PathComparer);
+        HashSet<string>.AlternateLookup<ReadOnlySpan<char>> lookup = all.GetAlternateLookup<ReadOnlySpan<char>>();
+        var topMost = new List<string>(shown.Count);
+        foreach (string path in shown)
+        {
+            bool isInside = false;
+            for (ReadOnlySpan<char> above = Path.GetDirectoryName(path.AsSpan()); !isInside && !above.IsEmpty; above = Path.GetDirectoryName(above))
+            {
+                isInside = lookup.Contains(above);
+            }
+
+            if (!isInside)
+            {
+                topMost.Add(path);
+            }
+        }
+
+        return topMost;
     }
 
     // The folders of the last level, the ones inside a folder of notes first (each group in the order the walk met them): what is asked first is

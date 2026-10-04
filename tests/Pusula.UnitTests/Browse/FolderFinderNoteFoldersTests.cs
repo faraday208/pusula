@@ -354,7 +354,7 @@ public sealed partial class FolderFinderTests
     }
 
     [Fact]
-    public void Find_FolderOfNotesAtTheLastLevelThatHoldsFewOfTheWikilinksOfTheOneAroundIt_IsListedNextToIt()
+    public void Find_FolderOfNotesAtTheLastLevelThatHoldsFewOfTheWikilinksOfTheOneAroundIt_IsPartOfTheOneAroundIt()
     {
         using var temp = new TempDirectory();
         temp.Write("home/a/b/Notes/Home.md", Linked);
@@ -364,8 +364,8 @@ public sealed partial class FolderFinderTests
         FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
 
         // The folder around has 19 notes in all, 10 with a wikilink; small, at the fourth level, is a folder of notes too and holds 3 of those 10: not enough to
-        // take the place of the one around it.
-        found.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([("Notes", FolderKind.Notes), ("small", FolderKind.Notes)]);
+        // take the place of the one around it, which it lies in, and so it is no row of its own.
+        found.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([("Notes", FolderKind.Notes)]);
     }
 
     [Fact]
@@ -654,8 +654,90 @@ public sealed partial class FolderFinderTests
         found.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([("Notes", FolderKind.Notes), ("small", FolderKind.Vault)]);
     }
 
+    // ---- A folder of notes inside a folder of notes that is listed is part of it ----------------------------------------------
+
+    // A folder of documentation written as linked notes, whose subfolders have an index note and wikilinks of their own: Docs has 36 notes in all and each
+    // of the two subfolders 12, a third of the wikilinked notes, not the 60% that would put the subfolder in the place of Docs.
+    private static void MakeDocsWithTwoSubfolders(TempDirectory temp, string docs)
+    {
+        MakeNotes(temp, docs, notes: 12);
+        MakeNotes(temp, $"{docs}/Guide", notes: 12);
+        MakeNotes(temp, $"{docs}/Reference", notes: 12);
+    }
+
+    [Fact]
+    public void Find_FolderOfNotesWhoseSubfoldersAreFoldersOfNotesTooAndHoldLittleOfIt_IsOneRowAndNotOneForEachSubfolder()
+    {
+        using var temp = new TempDirectory();
+        MakeDocsWithTwoSubfolders(temp, "home/Docs");
+
+        FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
+
+        // Guide and Reference are folders of notes by the same rules, and neither holds 60% of the wikilinked notes of Docs: they are part of Docs.
+        found.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([("Docs", FolderKind.Notes)]);
+        found.Complete.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Find_FolderOfNotesInsideAFolderOfNotesInsideAFolderOfNotes_IsPartOfTheOutermostThatIsListed()
+    {
+        using var temp = new TempDirectory();
+        MakeNotes(temp, "home/A", notes: 24);
+        MakeNotes(temp, "home/A/B", notes: 12);
+        MakeNotes(temp, "home/A/B/C", notes: 12);
+
+        FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
+
+        // A has 48 notes in all, B 24 (half of A's), C 12 (half of B's): none of them holds 60% of the one around it, and only the outermost is a row.
+        Paths(found).ShouldBe([temp.Resolve("home/A")]);
+    }
+
+    [Fact]
+    public void Find_OuterFolderThatTheFolderInsideItTakesTheirPlaceOf_ListsTheInnerOneAndNotTheFoldersOfNotesInsideThat()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("home/A/README.md", Linked);
+        WriteNotes(temp, "home/A", "p", count: 3, linked: 3);
+        MakeNotes(temp, "home/A/B", notes: 12);
+        MakeNotes(temp, "home/A/B/C", notes: 10);
+
+        FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
+
+        // A has 26 notes, B 22 and C 10. B holds more than 60% of A's wikilinked notes and is listed in its place; C holds 10 of B's 22, not enough to take B's
+        // place, and lies inside B, which is listed: it is part of B.
+        Paths(found).ShouldBe([temp.Resolve("home/A/B")]);
+    }
+
+    [Fact]
+    public void Find_VaultInsideAFolderOfNotesThatIsListed_IsListedNextToItAndSoIsNoFolderOfNotesInsideThatDoes()
+    {
+        using var temp = new TempDirectory();
+        MakeDocsWithTwoSubfolders(temp, "home/Docs");
+        temp.CreateDirectory("home/Docs/Archive/.obsidian");
+        WriteNotes(temp, "home/Docs/Archive", "a", count: 4, linked: 0);
+
+        FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
+
+        // The vault is never left out: it is listed next to Docs, which keeps what the vault does not hold; Guide and Reference are part of Docs.
+        found.Folders.Select(folder => (folder.Name, folder.Kind)).ShouldBe([("Archive", FolderKind.Vault), ("Docs", FolderKind.Notes)]);
+    }
+
+    [Fact]
+    public void Find_FoldersOfNotesBesideEachOther_AreAllListedAndTheOneThatHasSubfoldersOfNotesIsOneRow()
+    {
+        using var temp = new TempDirectory();
+        MakeDocsWithTwoSubfolders(temp, "home/Docs");
+        MakeNotes(temp, "home/Docs2", notes: 12);
+
+        FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
+
+        // A folder whose name starts like another is not inside it: Docs2 lies beside Docs.
+        found.Folders.Select(folder => folder.Name).ShouldBe(["Docs", "Docs2"]);
+    }
+
     // The outer folder has 20 notes, all in its sample: 4 wikilinked ones of its own and the ones of the inner folder (12 notes). The inner
-    // folder holds 60% of the wikilinked notes when it has 6 of 10, not when it has 5 of 9.
+    // folder holds 60% of the wikilinked notes when it has 6 of 10, not when it has 5 of 9. When it does not, the outer folder is listed, and the inner
+    // folder is too if it is a vault: a folder of notes that lies inside a folder of notes that is listed is part of it.
     [Theory]
     [InlineData(false, 6, false)]
     [InlineData(false, 5, true)]
@@ -679,10 +761,13 @@ public sealed partial class FolderFinderTests
         FoundFolders found = Finder(temp).Find(TestContext.Current.CancellationToken);
 
         string[] expected = outerIsListed
-            ? [temp.Resolve("home/Outer"), temp.Resolve("home/Outer/Inner")]
+            ? (innerIsAVault ? [temp.Resolve("home/Outer"), temp.Resolve("home/Outer/Inner")] : [temp.Resolve("home/Outer")])
             : [temp.Resolve("home/Outer/Inner")];
         Paths(found).ShouldBe(expected, ignoreOrder: true);
-        found.Folders.Single(folder => folder.Name == "Inner").Kind.ShouldBe(innerIsAVault ? FolderKind.Vault : FolderKind.Notes);
+        if (found.Folders.SingleOrDefault(folder => folder.Name == "Inner") is { } inner)
+        {
+            inner.Kind.ShouldBe(innerIsAVault ? FolderKind.Vault : FolderKind.Notes);
+        }
     }
 
     // A folder of notes inside a folder of notes inside a folder of notes, with a vault at the bottom that lies inside both: each of the two is judged

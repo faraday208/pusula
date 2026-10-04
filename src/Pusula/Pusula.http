@@ -189,8 +189,10 @@ Accept: application/json
 # or start.md, in any case); at least 10 Markdown files in it and up to 3 levels below it, which are at least half of the files there;
 # and a wikilink ("[[") in at least a fifth of a sample of them (the first 4 KB of at most 20 of the notes, spread over the folder; they are
 # read on the server and nothing of them leaves it). A folder of notes that has a vault or another folder of notes inside it which holds
-# at least 60% of its wikilinked notes is left out, the one inside is listed; a vault never is. The folders the search starts from are never
-# listed. A folder of notes is found as deep as a vault is (4 levels) under the home directory and, on Windows, on the system drive (the drive of
+# at least 60% of its wikilinked notes is left out, the one inside is listed. Of the folders of notes that are left, one that lies inside
+# another that is listed is not listed, for it is part of it: a folder of notes whose subfolders have an index note and wikilinks of their own
+# is one entry, and not one for each subfolder. A vault is never left out: one inside a listed folder of notes is listed next to it. The folders
+# the search starts from are never listed. A folder of notes is found as deep as a vault is (4 levels) under the home directory and, on Windows, on the system drive (the drive of
 # the Windows folder): the search does not read the folders of the last level, so each of those is asked for an entry note by reading its first
 # 200 entries, in the order of the file system, and one that has none among them is taken to have none (a choice: a folder of notes is small near
 # its root, and no more is read of a folder of thousands of files). Below /mnt, /media and /Volumes and on the other drives of Windows the folders

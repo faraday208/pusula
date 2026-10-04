@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using Pusula.Browse;
 using Pusula.UnitTests.Support;
@@ -362,6 +364,96 @@ public sealed class NoteFolderScannerTests
         }
 
         Looked(temp.Resolve("home"), sampleAlways: true).ShouldBe(new NoteFolderCheck(Notes: 1, Files: 1, Sampled: 1, Linked: 1));
+    }
+
+    // A link to a file: made where links can be made.
+    private static void CreateFileLink(string linkPath, string target)
+    {
+        try
+        {
+            File.CreateSymbolicLink(linkPath, target);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            Assert.Skip($"Symbolic links are not available here: {exception.Message}");
+        }
+    }
+
+    // A named pipe in the file system: opening one waits for ever until something writes to it. .NET has no way to make one, so the program that does is run.
+    private static void MakePipe(string path)
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Needs a named pipe in the file system.");
+        try
+        {
+            using Process? mkfifo = Process.Start(new ProcessStartInfo("mkfifo", [path]) { RedirectStandardError = true });
+            mkfifo?.WaitForExit();
+            if (mkfifo is not { ExitCode: 0 })
+            {
+                Assert.Skip("A named pipe cannot be made here.");
+            }
+        }
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+        {
+            Assert.Skip($"A named pipe cannot be made here: {exception.Message}");
+        }
+    }
+
+    // Looks into a folder on a thread of its own and waits a while for it: a scan that opened a pipe never comes back, and that has to fail the test and not hang it.
+    private static async Task<NoteFolderCheck> LookedWithinAWhile(string folder)
+    {
+        Task<NoteFolderCheck> look = Task.Run(() => Looked(folder, sampleAlways: true), TestContext.Current.CancellationToken);
+
+        Task first = await Task.WhenAny(look, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        first.ShouldBeSameAs(look, "The scan did not come back: it is waiting on a pipe that it should not have opened.");
+        return await look;
+    }
+
+    [Fact]
+    public void Scan_NoteThatIsALinkToAnEmptyFile_IsASampledNoteWithNoWikilink()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("elsewhere/empty.md", string.Empty);
+        temp.Write("home/linked.md", "[[x]]");
+        CreateFileLink(temp.Resolve("home/to-empty.md"), temp.Resolve("elsewhere/empty.md"));
+
+        // What a link leads to is empty, as the file itself would be.
+        Looked(temp.Resolve("home"), sampleAlways: true).ShouldBe(new NoteFolderCheck(Notes: 2, Files: 2, Sampled: 2, Linked: 1));
+    }
+
+    [Fact]
+    public void Scan_NoteThatIsALinkToALinkToAFile_IsReadThroughBothLinks()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("elsewhere/target.md", "[[x]]");
+        temp.CreateDirectory("home");
+        CreateFileLink(temp.Resolve("elsewhere/first.md"), temp.Resolve("elsewhere/target.md"));
+        CreateFileLink(temp.Resolve("home/second.md"), temp.Resolve("elsewhere/first.md"));
+
+        Looked(temp.Resolve("home"), sampleAlways: true).ShouldBe(new NoteFolderCheck(Notes: 1, Files: 1, Sampled: 1, Linked: 1));
+    }
+
+    [Fact]
+    public async Task Scan_NoteThatIsAPipe_IsNotOpenedAndIsTakenForAnEmptyNote()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("real.md", "[[x]]");
+        MakePipe(temp.Resolve("pipe.md"));
+
+        (await LookedWithinAWhile(temp.Path)).ShouldBe(new NoteFolderCheck(Notes: 2, Files: 2, Sampled: 2, Linked: 1));
+    }
+
+    [Fact]
+    public async Task Scan_NoteThatIsALinkToAPipe_IsNotOpenedEither()
+    {
+        using var temp = new TempDirectory();
+        temp.Write("home/real.md", "[[x]]");
+        temp.CreateDirectory("elsewhere");
+        MakePipe(temp.Resolve("elsewhere/pipe"));
+        CreateFileLink(temp.Resolve("home/to-pipe.md"), temp.Resolve("elsewhere/pipe"));
+
+        // The length of a link is its own, not the length of what it leads to: the guard has to look at the target.
+        (await LookedWithinAWhile(temp.Resolve("home"))).ShouldBe(new NoteFolderCheck(Notes: 2, Files: 2, Sampled: 2, Linked: 1));
     }
 
     // ---- Asking a folder for an entry note ------------------------------------------------------------------------

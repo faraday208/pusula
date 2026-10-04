@@ -298,7 +298,8 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         {
             "kind Notes", "Home.md, index.md, README.md, MOC.md, _index.md or start.md", "at least 10 Markdown files", "up to 3 levels below it",
             "at least half of the files", "at least a fifth of a sample", "'[[' in the first 4 KB", "at most 20 notes", "at least 60% of its wikilinked notes",
-            "A vault is never left out", "as deep as a vault is (4 levels) under the home directory and, on Windows, on the system drive",
+            "A vault is never left out", "one that lies inside another that is listed is not listed, for it is part of it",
+            "one inside a listed folder of notes is listed next to it", "as deep as a vault is (4 levels) under the home directory and, on Windows, on the system drive",
             "asked for an entry note by reading its first 200 entries", "one that has none among them is taken to have none",
             "Below /mnt, /media and /Volumes and on the other drives of Windows the folders of the last level are not asked",
             "an external disk may sleep or be slow", "down to one level above the last (3 levels, 2 below /Volumes)", "a vault is found at every level",
