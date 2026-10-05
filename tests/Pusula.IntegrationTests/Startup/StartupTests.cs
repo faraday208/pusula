@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Pusula.Indexing;
 using Pusula.IntegrationTests.Support;
@@ -11,16 +12,24 @@ public sealed class StartupTests
 {
     private static string Json(string path) => JsonSerializer.Serialize(path);
 
+    // The real entry point, with the root given as a setting (the way Pusula:Root comes from the settings file or the
+    // environment, which the early check of the command line does not see): the index host reports the folder when it
+    // starts, and no server runs. A host built by the test factory is not used for this: when its start fails, it can
+    // report that its services are disposed already instead of the failure (a race of the test host, not of pusula).
     [Fact]
-    public void Start_RootDoesNotExist_FailsAndNamesTheFolder()
+    public void Main_RootSettingThatDoesNotExist_FailsAndNamesTheFolder()
     {
         using var temp = new TempDirectory();
         string missing = temp.Resolve("does-not-exist");
-        using var factory = new PusulaFactory(missing);
 
-        DirectoryNotFoundException exception = Should.Throw<DirectoryNotFoundException>(() => factory.CreateClient());
+        StartFailure(missing).Message.ShouldContain(missing);
+    }
 
-        exception.Message.ShouldContain(missing);
+    private static DirectoryNotFoundException StartFailure(string root)
+    {
+        TargetInvocationException thrown = Should.Throw<TargetInvocationException>(() =>
+            typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:Root", root, "--urls", "http://127.0.0.1:0" }]));
+        return thrown.InnerException.ShouldBeOfType<DirectoryNotFoundException>();
     }
 
     // The real entry point and the real limit: a folder of 20,001 Markdown files. One line on the error stream and exit
@@ -53,13 +62,12 @@ public sealed class StartupTests
     }
 
     [Fact]
-    public void Start_RootIsAFile_Fails()
+    public void Main_RootSettingThatIsAFile_FailsAndNamesTheFile()
     {
         using var temp = new TempDirectory();
         string file = temp.Write("not-a-folder.md", "x");
-        using var factory = new PusulaFactory(file);
 
-        Should.Throw<DirectoryNotFoundException>(() => factory.CreateClient()).Message.ShouldContain(file);
+        StartFailure(file).Message.ShouldContain(file);
     }
 
     // The real entry point, called in-process. A root that does not exist has to stop it before a host is built (a
