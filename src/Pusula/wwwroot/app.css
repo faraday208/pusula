@@ -2799,6 +2799,14 @@ a.entry-card:hover .entry-name {
   margin: 0 0 14px;
 }
 
+/* The computer whose folders the sources are, on a line of its own under the title. */
+.sources-machine {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .sources-page h1 {
   margin: 0;
   font-size: 1.9em;

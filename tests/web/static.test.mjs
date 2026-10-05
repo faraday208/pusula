@@ -3127,6 +3127,19 @@ describe('the folder picker (the "Choose a folder..." window of the sources page
   });
 });
 
+describe('the computer the server runs on is named where folders are chosen', () => {
+  it('the picker\'s title names it when the server says which, and stays plain otherwise; it is set each time the picker is drawn', () => {
+    assert.match(functionSource('renderBrowseTitle'), /refs\.browseTitle\.textContent = machine === null \? t\('browse\.title'\) : t\('browse\.titleOn', \{ machine \}\)/);
+    assert.match(functionSource('renderBrowse'), /renderBrowseTitle\(\);/);
+  });
+
+  it('the Sources page says which server it is, on a line of its own under the title, in a quiet colour', () => {
+    assert.match(functionSource('sourcesHead'), /el\('p', 'sources-machine', t\('sources\.machine', \{ machine: state\.host\.machine \}\)\)/);
+    assert.match(ownRule('.sources-machine') ?? '', /flex-basis: 100%/);
+    assert.match(ownRule('.sources-machine') ?? '', /color: var\(--muted\)/);
+  });
+});
+
 describe('colour of the folder picker (WCAG contrast of the real tokens)', () => {
   for (const [theme, tokens] of [['light', lightTokens], ['dark', darkTokens]]) {
     const color = (name) => parseColor(tokens[name]);

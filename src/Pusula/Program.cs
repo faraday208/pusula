@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pusula.Browse;
 using Pusula.Files;
@@ -75,6 +77,16 @@ if (sourcesError is not null)
     Console.Error.WriteLine(sourcesError);
     return 1;
 }
+
+// Once the server listens, an address that other devices can reach is said on the error stream: there is no login.
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    ICollection<string>? addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses;
+    if (addresses is not null && NetworkWarning.For(addresses) is { } warning)
+    {
+        Console.Error.WriteLine(warning);
+    }
+});
 
 // The guard comes first: a request that is not meant for this server goes no further.
 app.UseMiddleware<HostGuardMiddleware>();

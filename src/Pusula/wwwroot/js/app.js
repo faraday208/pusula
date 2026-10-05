@@ -2523,6 +2523,8 @@ function sourcesHead() {
   head.append(el('h1', null, t('sources.title')));
   const lock = currentLock();
   if (lock !== null) head.append(el('span', 'source-chip', lock.chip === 'Remote' ? t('sources.readonly.Remote') : t('sources.readonly')));
+  // The computer whose folders the sources are: the one the server runs on, whatever device this page is on.
+  if (state.host.machine !== null) head.append(el('p', 'sources-machine', t('sources.machine', { machine: state.host.machine })));
   return head;
 }
 
@@ -3058,6 +3060,12 @@ function openBrowse() {
   loadFolder(memory.path, { restore: true });
 }
 
+/** The window's title names the computer whose folders it shows, where the server says which: a page opened from another device sees that computer's folders, not its own. */
+function renderBrowseTitle() {
+  const { machine } = state.host;
+  refs.browseTitle.textContent = machine === null ? t('browse.title') : t('browse.titleOn', { machine });
+}
+
 /** `focus`: `'opener'` gives the focus back to the button that opened the picker (the page's content when that is gone), `'content'` takes it to the content, where the reader is going. */
 function closeBrowse({ focus = 'opener' } = {}) {
   if (refs.browse.hidden) return;
@@ -3147,6 +3155,7 @@ function browseUp() {
 }
 
 function renderBrowse() {
+  renderBrowseTitle();
   renderBrowseFound();
   renderBrowseNav();
   renderBrowseList();
@@ -4662,6 +4671,7 @@ function cacheRefs() {
   refs.browse = document.getElementById('browse');
   refs.browseScrim = document.getElementById('browse-scrim');
   refs.browseBox = document.getElementById('browse-box');
+  refs.browseTitle = document.getElementById('browse-title');
   refs.browseClose = document.getElementById('browse-close');
   refs.browseFound = document.getElementById('browse-found');
   refs.browseFoundStatus = document.getElementById('browse-found-status');

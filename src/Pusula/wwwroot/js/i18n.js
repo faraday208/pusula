@@ -32,6 +32,7 @@ export const DICT = {
     'source.status.ok': 'erişilebilir',
     'source.status.off': 'erişilemez',
     'sources.title': 'Kaynaklar',
+    'sources.machine': 'Bu sunucu: {machine}',
     'sources.none': 'Tanımlı kaynak yok.',
     'sources.missing': 'Bu kaynak listede yok: {id}',
     'sources.more': 'Başka yollar (dosya, komut satırı)',
@@ -100,6 +101,7 @@ export const DICT = {
     'about.releases': 'Sürüm notları',
 
     'browse.title': 'Klasör seç',
+    'browse.titleOn': '{machine} bilgisayarından klasör seç',
     'browse.close': 'Kapat',
     'browse.found': 'Bulunan klasörler',
     'browse.found.searching': 'Klasörler aranıyor…',
@@ -366,6 +368,7 @@ export const DICT = {
     'source.status.ok': 'available',
     'source.status.off': 'unavailable',
     'sources.title': 'Sources',
+    'sources.machine': 'This server: {machine}',
     'sources.none': 'No sources are set up.',
     'sources.missing': 'This source is not in the list: {id}',
     'sources.more': 'Other ways (file, command line)',
@@ -434,6 +437,7 @@ export const DICT = {
     'about.releases': 'Release notes',
 
     'browse.title': 'Choose a folder',
+    'browse.titleOn': 'Choose a folder on {machine}',
     'browse.close': 'Close',
     'browse.found': 'Folders found',
     'browse.found.searching': 'Searching for folders…',

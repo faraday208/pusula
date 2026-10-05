@@ -10,6 +10,9 @@ All notable changes to pusula are listed here. The format follows
 
 - **Choose folder…** also finds folders of linked notes that have no `.obsidian/` folder, recognized by their content
   (an entry note, mostly Markdown files, wikilinks between the notes), and labels them "notes".
+- The folder picker and the Sources page name the computer the server runs on, so a page opened from another device
+  says whose folders it shows.
+- When pusula listens on an address that other devices can reach, it says so in the terminal: there is no login.
 
 ### Changed
 
