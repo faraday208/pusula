@@ -19,6 +19,8 @@ All notable changes to pusula are listed here. The format follows
 - On Windows, **Choose folder…** also searches fixed and removable drives (system folders left out) and treats folders
   with the Hidden or System attribute, such as AppData, as hidden.
 - Built and tested on Linux, Windows and macOS on every change.
+- Warnings fail the build only in CI (`CI=true`): a newer .NET SDK or a new advisory for a package no longer stops
+  `dotnet run` on your machine. `dotnet build -warnaserror` gives the same check locally.
 
 ### Fixed
 

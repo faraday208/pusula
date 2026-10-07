@@ -9,7 +9,7 @@ what it costs in tokens, and broken, orphan and not-yet-written links.
 Run them from this folder: `global.json` here switches `dotnet test` to Microsoft.Testing.Platform.
 
 ```bash
-dotnet build pusula.slnx                                   # warnings are errors
+dotnet build pusula.slnx -warnaserror                      # warnings are errors (in CI by CI=true)
 dotnet test --solution pusula.slnx                         # unit + integration tests
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test "tests/web/*.test.mjs"   # UI tests
 dotnet run --project src/Pusula                            # sources from ~/.config/pusula/sources.json, http://localhost:5190

@@ -19,12 +19,14 @@ You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) and, for the U
 Run these from the repository root; `global.json` there switches `dotnet test` to Microsoft.Testing.Platform:
 
 ```bash
-dotnet build pusula.slnx                                                            # warnings are errors
+dotnet build pusula.slnx -warnaserror                                               # warnings are errors, as in CI
 dotnet test --solution pusula.slnx                                                  # unit and integration tests
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test "tests/web/*.test.mjs"   # UI tests
 ```
 
-CI runs the same three commands on every push to `main` and on every pull request.
+CI runs the same three commands on every push to `main` and on every pull request. Warnings fail the build only where
+`CI=true` (GitHub Actions sets it), so that a newer SDK or a new package advisory never stops someone who only runs
+pusula; `-warnaserror` above gives the same check locally.
 
 ## Try your change
 

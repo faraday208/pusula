@@ -6,7 +6,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Warnings fail the build in CI (CI=true, which GitHub Actions sets), not for someone who only wants to run pusula:
+         a newer SDK or a new advisory for a package would stop `dotnet run` there. Locally: dotnet build -warnaserror. -->
+    <TreatWarningsAsErrors Condition="'$(CI)' == 'true'">true</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
   </PropertyGroup>
 
