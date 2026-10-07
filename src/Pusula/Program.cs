@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -42,6 +43,10 @@ if (rootError is not null)
 WebApplicationBuilder builder = WebApplication.CreateBuilder(commandLine.HostArguments);
 
 commandLine.AddRootsTo(builder.Configuration);
+
+// A start that fails comes out of app.Run below, which says what went wrong in one line (or the runtime prints the
+// exception); the host's own error line about it would put the stack trace on the console first. Its critical lines stay.
+builder.Logging.AddFilter("Microsoft.Extensions.Hosting.Internal.Host", LogLevel.Critical);
 
 builder.Services.AddOptions<PusulaOptions>().BindConfiguration(PusulaOptions.SectionName);
 builder.Services.ConfigureHttpJsonOptions(options => ApiJson.Configure(options.SerializerOptions));
@@ -122,6 +127,14 @@ catch (FolderTooLargeException exception)
     // A folder that was named on the command line (or in Pusula:Root) is more than is shown: a usage error like one that
     // does not exist, one line and exit code 1. A folder of a sources file only makes its source not available.
     Console.Error.WriteLine($"pusula: {exception.Folder}: {exception.Message}");
+    return 1;
+}
+catch (IOException exception) when (exception.InnerException is AddressInUseException)
+{
+    // The address is taken, often by a pusula that is already running: one line and exit code 1 as well. The message of
+    // the server names the address.
+    Console.Error.WriteLine(
+        $"pusula: {exception.Message} Another program (perhaps another pusula) is using that port: stop it, or choose another port with --urls, for example --urls http://localhost:5191");
     return 1;
 }
 

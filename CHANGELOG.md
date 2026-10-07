@@ -24,6 +24,12 @@ All notable changes to pusula are listed here. The format follows
 
 - A folder written after the options on the command line (`--urls … ~/notes`) was silently ignored and the server
   showed the list of sources instead; pusula now stops with one line that says folders go before the options.
+- Started without folders on a computer that has no `~/.claude` and no sources file, pusula stopped with a stack
+  trace. It now opens with an empty list, and the **Sources** page asks for a folder.
+- Where `~/.config` did not exist yet (on a new Mac, for one), no folder could be added on the **Sources** page: the
+  sources file had no place. It now goes there anyway, and adding the first source creates the folder.
+- A port that is already in use, often by a pusula that is still running, is reported in one line with exit code 1,
+  and a start that fails no longer prints the host's stack trace before pusula's own line.
 
 ### Security
 

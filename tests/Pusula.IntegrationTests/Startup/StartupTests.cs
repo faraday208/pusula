@@ -1,5 +1,10 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Pusula.Indexing;
 using Pusula.IntegrationTests.Support;
 using Pusula.Startup;
@@ -232,5 +237,88 @@ public sealed class StartupTests
 
         tree.RootElement.GetProperty("root").GetString().ShouldBe(temp.Path);
         tree.RootElement.GetProperty("nodes")[0].GetProperty("name").GetString().ShouldBe("CLAUDE.md");
+    }
+
+    // A computer without Claude Code, and nothing that says what to show: the server starts with no source (it used to stop
+    // with a stack trace, as ~/.claude was a source that had to exist), the page can add one, and the first folder added is shown.
+    [Fact]
+    public async Task Start_NoClaudeFolderAndNoSourcesFile_StartsEmptyAndShowsTheFirstFolderAdded()
+    {
+        await using var app = new EditingApp();
+        Directory.Delete(Path.Join(app.Home, ".claude"), recursive: true);
+        string notes = app.Folder("notes", "Note.md");
+        await app.StartAsync();
+
+        using (JsonDocument sources = await app.GetSourcesAsync())
+        {
+            sources.RootElement.GetProperty("sources").GetArrayLength().ShouldBe(0);
+            sources.RootElement.GetProperty("sourcesFile").GetString().ShouldBe(app.SourcesFile);
+            sources.RootElement.GetProperty("canEdit").GetBoolean().ShouldBeTrue();
+        }
+
+        using HttpResponseMessage response = await app.PostAsync(notes);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Created);
+        app.Ids.ShouldBe(["notes"]);
+        File.Exists(app.SourcesFile).ShouldBeTrue();
+    }
+
+    // A port that another program holds, often a pusula that is already running: one line on the error stream and exit code 1,
+    // as for the other mistakes of the command line, not the stack trace of a start that failed.
+    [Fact]
+    public void Main_PortThatIsInUse_WritesOneErrorLineAndReturnsExitCode1()
+    {
+        using var temp = new TempDirectory();
+        var taken = new TcpListener(IPAddress.Loopback, 0);
+        taken.Start();
+        string address = $"http://127.0.0.1:{((IPEndPoint)taken.LocalEndpoint).Port}";
+        TextWriter originalError = Console.Error;
+        using var capturedError = new StringWriter();
+        object? exitCode;
+
+        Console.SetError(capturedError);
+        try
+        {
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address }]);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+            taken.Stop();
+        }
+
+        exitCode.ShouldBe(1);
+        string error = capturedError.ToString();
+        error.ShouldStartWith("pusula: ");
+        error.ShouldContain(address);
+        error.ShouldContain("--urls");
+        error.TrimEnd().ShouldNotContain('\n');
+    }
+
+    // A start that fails is told by the entry point in one line (or by the runtime, which prints the exception); the host's own
+    // error line about it would put the stack trace on the console first. Its critical lines, and the errors of every other
+    // category, still come through.
+    [Fact]
+    public async Task Logging_ErrorsOfTheHostItself_AreLeftOutButItsCriticalLinesAndOtherErrorsAreNot()
+    {
+        const string HostCategory = "Microsoft.Extensions.Hosting.Internal.Host";
+        using var temp = new TempDirectory();
+        temp.Write("home/.claude/CLAUDE.md", "# Claude\n");
+        var provider = new CapturingLoggerProvider();
+        await using PusulaFactory factory = PusulaFactory.FromSourcesFile(
+            temp.Resolve("data/pusula/sources.json"),
+            new UserDirectories(temp.Resolve("home"), temp.CreateDirectory("data")),
+            configureHost: builder => builder.ConfigureLogging(logging => logging.AddProvider(provider)));
+        ILoggerFactory loggers = factory.Services.GetRequiredService<ILoggerFactory>();
+
+        // The logger's own method, which the filters apply to as to any other line.
+        static void Write(ILogger logger, LogLevel level, string message) => logger.Log(level, default, message, exception: null, static (text, _) => text);
+
+        Write(loggers.CreateLogger(HostCategory), LogLevel.Error, "test: host error");
+        Write(loggers.CreateLogger(HostCategory), LogLevel.Critical, "test: host critical");
+        Write(loggers.CreateLogger("Pusula.Sources.SourceRegistry"), LogLevel.Error, "test: other error");
+
+        provider.Entries.Select(entry => entry.Message).Where(message => message.StartsWith("test: ", StringComparison.Ordinal))
+            .ShouldBe(["test: host critical", "test: other error"]);
     }
 }

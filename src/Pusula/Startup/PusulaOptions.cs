@@ -9,13 +9,13 @@ internal sealed class PusulaOptions
     /// <summary>Configuration key of <see cref="Roots"/>; the folders are <c>Pusula:Roots:0</c>, <c>Pusula:Roots:1</c>, ...</summary>
     internal const string RootsKey = SectionName + ":Roots";
 
-    /// <summary>The folder that is shown when nothing else says what to show.</summary>
+    /// <summary>The folder that is shown when nothing else says what to show, if it exists; otherwise nothing is shown until a source is added.</summary>
     internal const string DefaultRoot = "~/.claude";
 
     /// <summary>
     /// The one folder to show; a leading <c>~</c> stands for the user's home directory. It is used when no folder was
     /// given on the command line (<see cref="Roots"/>); when it is empty too, the sources file says what to show, and
-    /// without one <see cref="DefaultRoot"/> is shown. <see cref="ResolveRoot(string?, string)"/> gives the folder.
+    /// without one <see cref="DefaultRoot"/> is shown if it exists. <see cref="ResolveRoot(string?, string)"/> gives the folder.
     /// </summary>
     public string? Root { get; set; }
 

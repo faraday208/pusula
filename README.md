@@ -47,7 +47,8 @@ Open <http://localhost:5190>. Give folders as absolute paths or starting with `~
 
 With no folders on the command line, pusula reads its list of sources from `sources.json` in your user
 configuration folder (`~/.config/pusula/` on Linux, `%APPDATA%\pusula\` on Windows; the **Sources** page shows the
-exact path). Without that file it shows `~/.claude`.
+exact path). Without that file it shows `~/.claude`; if there is no `~/.claude` either, the list starts empty and you
+add folders on the **Sources** page.
 
 ```json
 {

@@ -12,7 +12,7 @@ internal sealed record SourceList(IReadOnlyList<SourceDefinition> Sources, strin
     /// Decides what to show, in this order: the folders given on the command line (<see cref="PusulaOptions.Roots"/>),
     /// <see cref="PusulaOptions.Root"/>, the sources file (<see cref="PusulaOptions.SourcesFile"/>, or
     /// <c>pusula/sources.json</c> in the application data directory, which is <c>~/.config</c> on Linux), and last
-    /// <see cref="PusulaOptions.DefaultRoot"/>.
+    /// <see cref="PusulaOptions.DefaultRoot"/> when that folder exists; without it the list is empty.
     /// </summary>
     /// <param name="options">The settings.</param>
     /// <param name="homeDirectory">The user's home directory, which a leading <c>~</c> expands to.</param>
@@ -54,7 +54,10 @@ internal sealed record SourceList(IReadOnlyList<SourceDefinition> Sources, strin
             return false;
         }
 
-        list = new SourceList(FromFolders([PusulaOptions.DefaultRoot], homeDirectory), file);
+        // Nothing says what to show: the Claude Code configuration of the user, when there is one. Without it (a computer
+        // without Claude Code) the list is empty and the Sources page asks for a folder, which it writes to that file.
+        bool hasClaude = Directory.Exists(PusulaOptions.ResolveRoot(PusulaOptions.DefaultRoot, homeDirectory));
+        list = new SourceList(hasClaude ? FromFolders([PusulaOptions.DefaultRoot], homeDirectory) : [], file);
         return true;
     }
 

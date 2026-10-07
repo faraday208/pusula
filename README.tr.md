@@ -47,7 +47,7 @@ başlatır, göreli yol orada aranır. `"$PWD/…"` bash, zsh ve PowerShell'de �
 
 Komut satırında klasör verilmezse pusula kaynak listesini kullanıcı ayar klasöründeki `sources.json`'dan okur
 (Linux'ta `~/.config/pusula/`, Windows'ta `%APPDATA%\pusula\`; tam yolu **Kaynaklar** sayfası gösterir). Dosya
-yoksa `~/.claude`'u gösterir.
+yoksa `~/.claude`'u gösterir; o da yoksa liste boş başlar ve klasörleri **Kaynaklar** sayfasından eklersin.
 
 ```json
 {

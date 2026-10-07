@@ -97,11 +97,37 @@ public sealed class SourceListTests
     {
         using var home = new TempDirectory();
         using var data = new TempDirectory();
+        home.CreateDirectory(".claude");
 
         SourceList list = Resolve(new PusulaOptions(), home, data);
 
         list.SourcesFile.ShouldBe(Path.Join(data.Path, "pusula", "sources.json"));
         list.Sources.ShouldBe([new SourceDefinition("claude", ".claude", Path.Join(home.Path, ".claude"), SourceProfile.Claude, IsRequired: true)]);
+    }
+
+    // A computer without Claude Code: nothing is shown until a folder is added on the Sources page, which writes the file
+    // that was looked for. The folder used to be a source that had to exist, and the server stopped with a stack trace.
+    [Fact]
+    public void TryResolve_NoFolderNoFileAndNoClaudeFolder_IsEmptyAndSaysWhereItLooked()
+    {
+        using var home = new TempDirectory();
+        using var data = new TempDirectory();
+
+        SourceList list = Resolve(new PusulaOptions(), home, data);
+
+        list.SourcesFile.ShouldBe(Path.Join(data.Path, "pusula", "sources.json"));
+        list.Sources.ShouldBeEmpty();
+    }
+
+    // A file where the folder would be is not a folder to show either.
+    [Fact]
+    public void TryResolve_ClaudeIsAFileNotAFolder_IsEmpty()
+    {
+        using var home = new TempDirectory();
+        using var data = new TempDirectory();
+        home.Write(".claude", "not a folder");
+
+        Resolve(new PusulaOptions(), home, data).Sources.ShouldBeEmpty();
     }
 
     // The settings say which file to read; a file that is not there is the same as no file.
@@ -110,6 +136,7 @@ public sealed class SourceListTests
     {
         using var home = new TempDirectory();
         using var data = new TempDirectory();
+        home.CreateDirectory(".claude");
         string missing = data.Resolve("nope/sources.json");
 
         SourceList list = Resolve(new PusulaOptions { SourcesFile = missing }, home, data);
@@ -148,6 +175,7 @@ public sealed class SourceListTests
     public void TryResolve_WithoutAnApplicationDataDirectory_HasNoFileToLookFor()
     {
         using var home = new TempDirectory();
+        home.CreateDirectory(".claude");
 
         SourceList.TryResolve(new PusulaOptions(), home.Path, string.Empty, out SourceList? list, out string? error).ShouldBeTrue(error);
 
