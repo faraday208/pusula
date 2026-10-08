@@ -8,6 +8,7 @@
 
   <ItemGroup Label="Application">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.*" />
     <PackageVersion Include="YamlDotNet" Version="18.*" />
   </ItemGroup>
 

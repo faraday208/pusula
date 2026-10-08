@@ -4,6 +4,9 @@
     <AssemblyName>pusula</AssemblyName>
     <RootNamespace>Pusula</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The page and the default settings are built into the program (see Startup/BuiltInContent.cs): the single-file
+         download has nothing next to it and is started from any folder. -->
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +15,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**" />
+    <EmbeddedResource Include="appsettings.json" LogicalName="pusula.appsettings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" />
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 

@@ -42,6 +42,10 @@ if (rootError is not null)
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(commandLine.HostArguments);
 
+// The default settings are built into the program and come under everything else: the single-file download has no
+// appsettings.json next to it. One in the content root (dotnet run), the environment and the command line still win.
+builder.Configuration.Sources.Insert(0, BuiltInContent.Settings());
+
 commandLine.AddRootsTo(builder.Configuration);
 
 // A start that fails comes out of app.Run below, which says what went wrong in one line (or the runtime prints the
@@ -92,6 +96,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
         Console.Error.WriteLine(warning);
     }
 });
+
+// Outside Development the page is the one built into the program, never a wwwroot of the folder it was started in.
+// Development (dotnet run) keeps the files on disk, so that a change to them shows on the next reload.
+if (!app.Environment.IsDevelopment())
+{
+    app.Environment.WebRootFileProvider = BuiltInContent.WebRoot();
+}
 
 // The guard comes first: a request that is not meant for this server goes no further.
 app.UseMiddleware<HostGuardMiddleware>();
