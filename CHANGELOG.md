@@ -13,9 +13,14 @@ All notable changes to pusula are listed here. The format follows
 - The folder picker and the Sources page name the computer the server runs on, so a page opened from another device
   says whose folders it shows.
 - When pusula listens on an address that other devices can reach, it says so in the terminal: there is no login.
+- **Downloads.** Every release has one file per platform (Windows x64, Linux x64 and ARM64, macOS on Apple silicon)
+  that carries its own .NET: download it and run it, nothing to install. Their SHA-256 sums are on the release page.
+  The files are not signed yet; the README says what macOS and Windows ask before the first start.
 
 ### Changed
 
+- The page and the default settings (port 5190 among them) are built into the program, so it works the same from
+  whatever folder it is started in. A `wwwroot` folder where pusula is started is never served as its page.
 - On Windows, **Choose folder…** also searches fixed and removable drives (system folders left out) and treats folders
   with the Hidden or System attribute, such as AppData, as hidden.
 - Built and tested on Linux, Windows and macOS on every change.

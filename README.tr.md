@@ -31,6 +31,32 @@ Senin bilgisayarında çalışır ve yalnız okur. Hiçbir veri bilgisayarından
 
 ## Hızlı başlangıç
 
+### İndir ve çalıştır
+
+Bilgisayarına uygun dosyayı [son sürümden](https://github.com/faraday208/pusula/releases/latest) al: Windows (x64),
+Linux (x64 ya da Raspberry Pi gibi ARM64) veya Apple Silicon işlemcili Mac. Tek dosya, .NET içinde; kurulacak bir şey
+yok.
+
+```bash
+mv pusula-*-linux-x64 pusula && chmod +x pusula   # Mac'te dosyanın sonu osx-arm64
+./pusula ~/.claude                               # Claude Code yapılandırman
+./pusula                                         # ya da kaynak listen
+```
+
+Windows'ta `pusula-…-win-x64.exe`'yi bir terminalde aynı argümanlarla çalıştır. Sonra <http://localhost:5190> adresini
+aç. Her sürüm dosyalarının SHA-256 özetlerini `SHA256SUMS.txt`'de verir.
+
+Dosyalar henüz imzalı değil, bu yüzden ilk açılışta bir adım daha gerekir:
+
+- **macOS** dosyayı denetleyemediğini söyler: Sistem Ayarları → Gizlilik ve Güvenlik'ten izin ver (**Yine de Aç**) ya
+  da bir kez `xattr -d com.apple.quarantine pusula` çalıştır.
+- **Windows** SmartScreen bilgisayarını koruduğunu söyler: **Ek bilgi** → **Yine de çalıştır**. Akıllı Uygulama
+  Denetimi (Smart App Control) açıksa Windows imzasız hiçbir programı çalıştırmaz; orada WSL altında Linux dosyası çalışır.
+- **Linux**'ta ICU (`libicu`) gerekir, çoğu sistemde kurulu. Yoksa pusula bunu söyler; kur ya da pusula'yı
+  `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` ile başlat (klasör seçicide adlar o zaman kod sırasına göre dizilir).
+
+### Kaynaktan
+
 [.NET 10 SDK](https://dotnet.microsoft.com/download) gerekir.
 
 ```bash
@@ -42,6 +68,8 @@ dotnet run --project src/Pusula -- ~/.claude                                    
 
 <http://localhost:5190> adresini aç. Klasörleri tam yolla ya da `~` ile ver: `dotnet run` sunucuyu `src/Pusula` içinde
 başlatır, göreli yol orada aranır. `"$PWD/…"` bash, zsh ve PowerShell'de çalışır.
+
+Aşağıdaki örnekler `pusula` ile yazıldı; kaynaktan çalıştırırken yerine `dotnet run --project src/Pusula --` yaz.
 
 ## Kaynaklar
 
@@ -67,8 +95,7 @@ ters bölü bir kaçış dizisi başlatır.
   yazılır; dosyayı elle düzenlemek de olur, yeniden başlatmak gerekmez.
 - **Profil** kendiliğinden anlaşılır: `.obsidian/` içeren klasör Obsidian kasasıdır, Claude Code yapılandırma
   klasörü katmanları ve token'larıyla gösterilir, gerisi düz Markdown olarak.
-- **Komut satırındaki klasörler** (`dotnet run --project src/Pusula -- <klasör> [<klasör>…]`, tam yolla, `--urls` gibi seçeneklerden
-  önce) listenin yerine geçer.
+- **Komut satırındaki klasörler** (`pusula <klasör> [<klasör>…]`, `--urls` gibi seçeneklerden önce) listenin yerine geçer.
 
 ## Uzaktan erişim
 
@@ -77,7 +104,7 @@ yok:** adresine ulaşabilen herkes gösterdiği dosyaları okuyabilir. Varsayıl
 
 | Yol | Nasıl | |
 |---|---|---|
-| Özel ağ ([Tailscale](https://tailscale.com) ya da benzeri) | `dotnet run --project src/Pusula -- --urls http://<tailscale-ip>:5190` | ✅ önerilen: şifreli, yalnız senin cihazların |
+| Özel ağ ([Tailscale](https://tailscale.com) ya da benzeri) | `pusula --urls http://<tailscale-ip>:5190` | ✅ önerilen: şifreli, yalnız senin cihazların |
 | SSH tüneli | `ssh -L 5190:localhost:5190 <kullanıcı>@<bilgisayar>`, sonra <http://localhost:5190> | ✅ |
 | Ev ağı (LAN adresi) | `--urls http://<lan-ip>:5190` | ⚠️ yalnız güvendiğin ağda: şifresiz HTTP |
 | İnternet (port yönlendirme, açık tüneller) | | ❌ yapma |
@@ -102,7 +129,7 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
 
 - Token sayısı kaba bir tahmindir (karakter ÷ 4).
 - Görseller, Mermaid diyagramları, Obsidian Bases, canvas ve dipnotlar henüz çizilmiyor; ham HTML metin olarak görünür.
-- `dotnet run` ile çalıştır; başka klasörden başlatılan yayınlanmış ikili şimdilik web dosyalarını bulamıyor.
+- İndirilen dosyalar henüz imzalı değil: macOS ve Windows ilk açılıştan önce bir kez sorar (bkz. [Hızlı başlangıç](#hızlı-başlangıç)).
 
 ## Güncelleme
 
@@ -110,9 +137,8 @@ pusula [anlamsal sürümleme](https://semver.org) kullanır. Her sürüm bir eti
 bir kayıt ve [Releases](https://github.com/faraday208/pusula/releases) altında bir sayfa alır.
 
 - **Yeni sürümden haberdar olmak için:** GitHub'da **Watch → Custom → Releases** seç.
-- **Güncellemek için:** `git pull`, sonra pusula'yı yeniden başlat.
-- **Hangi sürümü çalıştırıyorum?** Kaynaklar sayfasının en altında yazar; `dotnet run --project src/Pusula -- --version`
-  da yazdırır.
+- **Güncellemek için:** yeni dosyayı indir (ya da kaynakta `git pull`), sonra pusula'yı yeniden başlat.
+- **Hangi sürümü çalıştırıyorum?** Kaynaklar sayfasının en altında yazar; `pusula --version` da yazdırır.
 
 pusula güncellemeyi kendiliğinden denetlemez: ağa hiç istek atmaz.
 

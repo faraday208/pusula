@@ -9,6 +9,15 @@
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
   </PropertyGroup>
 
+  <!-- dotnet publish -r <runtime>: one file that carries its own .NET, compressed, with the symbols inside it. No trimming
+       and no Native AOT: YamlDotNet works by reflection. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Pusula.UnitTests" />
     <InternalsVisibleTo Include="Pusula.IntegrationTests" />

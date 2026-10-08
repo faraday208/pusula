@@ -31,6 +31,32 @@ It runs on your own computer and only reads. Nothing leaves your machine.
 
 ## Quick start
 
+### Download and run
+
+Take the file for your computer from the [latest release](https://github.com/faraday208/pusula/releases/latest):
+Windows (x64), Linux (x64, or ARM64 such as a Raspberry Pi) or a Mac with Apple silicon. It is one file with .NET
+inside; there is nothing to install.
+
+```bash
+mv pusula-*-linux-x64 pusula && chmod +x pusula   # on a Mac the file ends in osx-arm64
+./pusula ~/.claude                               # your Claude Code configuration
+./pusula                                         # or your list of sources
+```
+
+On Windows run `pusula-…-win-x64.exe` in a terminal, with the same arguments. Then open <http://localhost:5190>.
+Each release lists the SHA-256 of its files in `SHA256SUMS.txt`.
+
+The files are not signed yet, so the first start needs one more step:
+
+- **macOS** says it cannot check the file: allow it in System Settings → Privacy & Security (**Open Anyway**), or run
+  `xattr -d com.apple.quarantine pusula` once.
+- **Windows** SmartScreen says it protected your PC: **More info** → **Run anyway**. With Smart App Control on,
+  Windows runs no unsigned program at all; the Linux file under WSL works there.
+- **Linux** needs ICU (`libicu`), which most systems have. Without it pusula says so; install it, or start pusula with
+  `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` (folder names in the folder picker are then sorted by code point).
+
+### From source
+
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
@@ -42,6 +68,8 @@ dotnet run --project src/Pusula -- ~/.claude                                    
 
 Open <http://localhost:5190>. Give folders as absolute paths or starting with `~`: `dotnet run` starts the server in
 `src/Pusula`, so a relative path would be looked up there. `"$PWD/…"` works in bash, zsh and PowerShell.
+
+The examples below use `pusula`; from source, write `dotnet run --project src/Pusula --` in its place.
 
 ## Sources
 
@@ -68,8 +96,7 @@ JSON, where a single backslash starts an escape.
   editing the file by hand works too, without a restart.
 - **Profiles** are detected automatically: a folder with `.obsidian/` is an Obsidian vault, a Claude Code
   configuration folder is shown with load layers and tokens, anything else as plain Markdown.
-- **Folders on the command line** (`dotnet run --project src/Pusula -- <folder> [<folder>…]`, absolute paths, before any option such as `--urls`)
-  replace the list.
+- **Folders on the command line** (`pusula <folder> [<folder>…]`, before any option such as `--urls`) replace the list.
 
 ## Remote access
 
@@ -78,7 +105,7 @@ who can reach its address can read the files it shows. By default it listens on 
 
 | Way | How | |
 |---|---|---|
-| Private network ([Tailscale](https://tailscale.com) or similar) | `dotnet run --project src/Pusula -- --urls http://<tailscale-ip>:5190` | ✅ recommended: encrypted, only your devices |
+| Private network ([Tailscale](https://tailscale.com) or similar) | `pusula --urls http://<tailscale-ip>:5190` | ✅ recommended: encrypted, only your devices |
 | SSH tunnel | `ssh -L 5190:localhost:5190 <user>@<computer>`, then open <http://localhost:5190> | ✅ |
 | Home network (LAN address) | `--urls http://<lan-ip>:5190` | ⚠️ only on a network you trust: plain HTTP |
 | The internet (port forwarding, public tunnels) | | ❌ don't |
@@ -103,7 +130,7 @@ browse your folders, whatever the setting, and the server answers only to IP add
 
 - Token counts are a rough estimate (characters ÷ 4).
 - Images, Mermaid diagrams, Obsidian Bases, canvases and footnotes are not drawn yet; raw HTML is shown as text.
-- Run it with `dotnet run`; a published binary started from another folder does not find its web files yet.
+- The downloads are not signed yet: macOS and Windows ask once before the first start (see [Quick start](#quick-start)).
 
 ## Updating
 
@@ -111,9 +138,8 @@ pusula uses [semantic versioning](https://semver.org). Every release gets a tag 
 [CHANGELOG.md](CHANGELOG.md) and a page under [Releases](https://github.com/faraday208/pusula/releases).
 
 - **To hear about new releases:** on GitHub choose **Watch → Custom → Releases**.
-- **To update:** `git pull`, then start pusula again.
-- **Which version am I running?** It is shown at the bottom of the Sources page, and
-  `dotnet run --project src/Pusula -- --version` prints it.
+- **To update:** download the new file (or `git pull` the source), then start pusula again.
+- **Which version am I running?** It is shown at the bottom of the Sources page, and `pusula --version` prints it.
 
 pusula never checks for updates by itself: it makes no network requests.
 

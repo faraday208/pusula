@@ -17,14 +17,22 @@ dotnet run --project src/Pusula -- ~/.claude ~/notes       # only these folders
 dotnet run --project src/Pusula -- "$PWD/samples/claude" "$PWD/samples/vault"   # synthetic demo
 dotnet run --project src/Pusula -- --version                # prints the version (also on the Sources page)
 dotnet run --project src/Pusula -- --urls http://<private-network-IP>:5190 --Pusula:AllowRemoteEdit true
+dotnet publish src/Pusula -c Release -r linux-x64 -o publish   # the single-file download (also win-x64, linux-arm64, osx-arm64)
+node tools/smoke-test.mjs publish/pusula                        # starts it from another folder and checks page, files and API
 ```
+
+Releases: a `v*` tag runs `.github/workflows/release.yml`, which builds the four files on their own platforms, tries each
+with `tools/smoke-test.mjs` and puts them with `SHA256SUMS.txt` on a draft release; a person publishes it. The notes come
+from the section of `CHANGELOG.md` for that version.
 
 ## Layout
 
 - `src/Pusula`: one ASP.NET Core project (.NET 10, minimal APIs) in vertical slices. Dependencies point one way:
   `Sources/ Browse/ Tree/ Files/ Overview/ LiveReload/ → Indexing/ → Links/`. `Security/` holds the host guard and
   the security headers. There is no database: the file system is the source of truth, the index is an in-memory snapshot.
-- `src/Pusula/wwwroot`: the UI, plain HTML/CSS/JS as ES modules with no build step; `markdown-it` is vendored.
+- `src/Pusula/wwwroot`: the UI, plain HTML/CSS/JS as ES modules with no build step; `markdown-it` is vendored. It is
+  built into the program with `appsettings.json` (`Startup/BuiltInContent.cs`): outside Development the page always
+  comes from inside the program; Development (`dotnet run`) serves the files on disk.
 - `tests/Pusula.UnitTests`, `tests/Pusula.IntegrationTests` (xUnit v3, Shouldly), `tests/web` (node:test).
 - `samples/`: a synthetic Claude configuration and a small vault for trying pusula and for the README screenshots
   (`docs/screenshots/`). Folders on the command line must be absolute: `dotnet run` starts in `src/Pusula`.

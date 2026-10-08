@@ -24,7 +24,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-latest
+            rid: osx-arm64
     steps:
       - name: Check out
         uses: actions/checkout@v7
@@ -49,3 +55,10 @@ jobs:
 
       - name: Test (UI)
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test "tests/web/*.test.mjs"
+
+      # The download of a release: one file, started from a folder of its own (tools/smoke-test.mjs says what it checks).
+      - name: Publish the single file
+        run: dotnet publish src/Pusula -c Release -r ${{ matrix.rid }} -o publish
+
+      - name: Smoke test (the single file)
+        run: node tools/smoke-test.mjs publish/pusula${{ runner.os == 'Windows' && '.exe' || '' }}
