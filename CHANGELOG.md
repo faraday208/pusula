@@ -6,6 +6,10 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-08
+
+One file to download and run on Windows, Linux and macOS; nothing to install.
+
 ### Added
 
 - **Choose folder…** also finds folders of linked notes that have no `.obsidian/` folder, recognized by their content
@@ -69,5 +73,6 @@ The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).
 - English and Turkish user interface; keyboard and touch friendly.
 - A synthetic demo in `samples/`; the version is shown on the Sources page and printed by `--version`.
 
-[Unreleased]: https://github.com/faraday208/pusula/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/faraday208/pusula/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/faraday208/pusula/releases/tag/v0.2.0
 [0.1.0]: https://github.com/faraday208/pusula/releases/tag/v0.1.0
