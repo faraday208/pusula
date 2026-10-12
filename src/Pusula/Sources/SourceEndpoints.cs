@@ -99,12 +99,12 @@ internal static class SourceEndpoints
         return source;
     }
 
-    internal static Ok<SourcesResponse> GetSources(ISourceRegistry registry, IOptions<PusulaOptions> options, HttpContext http)
+    internal static Ok<SourcesResponse> GetSources(ISourceRegistry registry, IOptions<PusulaOptions> options, UserDirectories directories, HttpContext http)
     {
         bool remoteEdit = options.Value.AllowRemoteEdit;
         EditBlock? blocked = SourceEditAccess.Blocked(http, registry.SourcesFile, remoteEdit);
         return TypedResults.Ok(new SourcesResponse(
-            [.. registry.Sources.Select(ToResponse)],
+            [.. registry.Sources.Select(entry => ToResponse(entry, directories.Home))],
             CanEdit: blocked is null,
             Environment.MachineName,
             remoteEdit,
@@ -132,7 +132,7 @@ internal static class SourceEndpoints
         }
 
         SourceEntry added = result.Entry!;
-        return TypedResults.Created($"/api/sources/{added.Definition.Id}", ToResponse(added));
+        return TypedResults.Created($"/api/sources/{added.Definition.Id}", ToResponse(added, directories.Home));
     }
 
     internal static async Task<Results<NoContent, ProblemHttpResult>> RemoveSource(string id, ISourceEditor editor, CancellationToken cancellationToken)
@@ -146,7 +146,7 @@ internal static class SourceEndpoints
         return TypedResults.NoContent();
     }
 
-    private static SourceResponse ToResponse(SourceEntry entry) =>
+    private static SourceResponse ToResponse(SourceEntry entry, string homeDirectory) =>
         new(
             entry.Definition.Id,
             entry.Definition.Name,
@@ -155,5 +155,17 @@ internal static class SourceEndpoints
             entry.IsAvailable,
             entry.Index?.Current.Files.Count ?? 0,
             entry.Error,
-            entry.ErrorCode?.ToString());
+            entry.ErrorCode?.ToString(),
+            ClaudeScope(entry.Definition, homeDirectory));
+
+    private static string? ClaudeScope(SourceDefinition source, string homeDirectory)
+    {
+        if (source.Profile is not SourceProfile.Claude)
+        {
+            return null;
+        }
+
+        string global = Path.Combine(homeDirectory, ".claude");
+        return SourcePaths.Same(source.Path, global) ? "global" : "project";
+    }
 }

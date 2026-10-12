@@ -923,12 +923,19 @@ function sourceMenuRow(source) {
   const dot = el('span', readable ? 'source-dot is-ok' : 'source-dot is-off');
   dot.setAttribute('aria-hidden', 'true');
   dot.title = readable ? t('source.status.ok') : t('source.status.off');
-  const meta = el('span', 'menu-meta', t(`source.profile.${profileName(source.profile)}`));
+  const meta = el('span', 'menu-meta', sourceProfileText(source));
   if (!readable) meta.append(` \u00b7 ${t('source.status.off')}`);
   link.append(dot, el('span', 'menu-name', source.name), meta);
   link.title = source.path;
   row.append(link);
   return row;
+}
+
+function sourceProfileText(source) {
+  const profile = t(`source.profile.${profileName(source.profile)}`);
+  return profileName(source.profile) === 'Claude' && (source.claudeScope === 'global' || source.claudeScope === 'project')
+    ? `${profile} \u00b7 ${t(`source.claudeScope.${source.claudeScope}`)}`
+    : profile;
 }
 
 /** The sources of the list drawn again (and the focus put back on the row it was on); "manage sources" is the current page on the sources page. */
@@ -2563,7 +2570,7 @@ function sourceCard(source, { open, last }) {
   const main = el('span', 'source-main');
   main.append(el('strong', 'source-title', source.name), el('span', 'source-path', source.path));
   const meta = el('span', 'source-meta');
-  meta.append(el('span', 'source-profile', t(`source.profile.${profileName(source.profile)}`)));
+  meta.append(el('span', 'source-profile', sourceProfileText(source)));
   if (readable) meta.append(el('span', 'source-count', tn(`source.count.${isNoteProfile(source.profile) ? 'notes' : 'files'}`, source.fileCount ?? 0)));
   if (open) meta.append(el('span', 'source-tag is-open', t('source.open')));
   else if (last) meta.append(el('span', 'source-tag', t('source.last')));
