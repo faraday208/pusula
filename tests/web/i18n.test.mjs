@@ -1116,3 +1116,79 @@ describe('the version of pusula', () => {
     i18n.setLang('en');
   });
 });
+
+describe('what changed since an earlier day (#7)', () => {
+  const names = Object.keys(en).filter((key) => key.startsWith('changes.'));
+
+  it('the title, the question that the two buttons answer, and the buttons', () => {
+    assert.equal(tr['changes.title'], 'Ne değişti');
+    assert.equal(en['changes.title'], 'What changed');
+    assert.equal(tr['changes.choose'], 'Neyle karşılaştırılsın');
+    assert.equal(en['changes.choose'], 'Compare with');
+    assert.deepEqual([tr['changes.day'], tr['changes.week']], ['Dünden beri', 'Geçen haftadan beri']);
+    assert.deepEqual([en['changes.day'], en['changes.week']], ['Since yesterday', 'Since last week']);
+  });
+
+  it('one quiet line says what is compared with: the day and the time are filled in', () => {
+    assert.equal(i18n.format(tr['changes.base'], { when: '11 Ekim Pazar, 09:14' }), 'Karşılaştırma: 11 Ekim Pazar, 09:14');
+    assert.equal(i18n.format(en['changes.base'], { when: 'Sunday 11 October, 09:14' }), 'Compared with: Sunday 11 October, 09:14');
+  });
+
+  it('nothing changed, no day to compare with, no week to compare with (the first day is filled in)', () => {
+    assert.equal(tr['changes.none'], 'O zamandan beri değişen bir şey yok.');
+    assert.equal(en['changes.none'], 'Nothing has changed since then.');
+    assert.ok(tr['changes.noDay'].startsWith('Karşılaştıracak önceki bir gün yok') && /yarından itibaren/i.test(tr['changes.noDay']));
+    assert.ok(en['changes.noDay'].startsWith('There is no earlier day to compare with') && /From tomorrow on/.test(en['changes.noDay']));
+    assert.equal(i18n.format(tr['changes.noWeek'], { date: '9 Ekim Cuma' }), 'Geçen haftayla karşılaştırmak için en az bir haftalık özet gerekiyor; ilk özet 9 Ekim Cuma tarihli.');
+    assert.equal(i18n.format(en['changes.noWeek'], { date: 'Friday 9 October' }), 'Comparing with last week needs a summary from at least a week ago; the first one is from Friday 9 October.');
+  });
+
+  it('what is the matter with today\'s summary: no folder to keep it in, a folder that is shown, a write that failed (the reason is filled in)', () => {
+    assert.equal(tr['changes.off'], "Bu bilgisayarda pusula'nın özet tutacağı bir klasör yok, bu yüzden bugünün özeti tutulmadı.");
+    assert.equal(en['changes.off'], "pusula has no folder to keep summaries in on this computer, so today's summary was not kept.");
+    assert.equal(tr['changes.inside'], "pusula'nın özet klasörü burada gösterilen bir klasörün içinde; pusula gösterdiği klasörlere yazmadığı için bugünün özetini tutmadı.");
+    assert.equal(en['changes.inside'], "pusula's summary folder is inside a folder that is shown here; pusula never writes to those, so today's summary was not kept.");
+    assert.equal(i18n.format(tr['changes.failed'], { reason: 'Disk dolu' }), 'Bugünün özeti kaydedilemedi: Disk dolu');
+    assert.equal(i18n.format(en['changes.failed'], { reason: 'Disk full' }), "Today's summary could not be saved: Disk full");
+  });
+
+  it('the totals are written "before to after": the arrow is the dictionary\'s, as the arrow of the announcements is, and the page has no glyph of its own', () => {
+    assert.equal(i18n.format(tr['changes.range'], { before: '~12K', after: '~12.4K' }), '~12K → ~12.4K');
+    assert.equal(i18n.format(en['changes.range'], { before: '318', after: '319' }), '318 → 319');
+    assert.deepEqual([tr['changes.tokens'], en['changes.tokens']], ['Her oturum', 'Every session']);
+    assert.deepEqual([tr['changes.files'], en['changes.files']], ['Dosya', 'Files']);
+  });
+
+  it('the part of a file that loads every session: the words alone, or with the difference where the language puts it', () => {
+    assert.deepEqual([tr['changes.everySession'], en['changes.everySession']], ['her oturumda', 'every session']);
+    assert.equal(i18n.format(tr['changes.everySessionDelta'], { delta: '+40' }), 'her oturumda +40');
+    assert.equal(i18n.format(en['changes.everySessionDelta'], { delta: '+40' }), '+40 every session');
+  });
+
+  it('a source of notes has its own words for the totals and for the lists of files; a list of links reads the same everywhere', () => {
+    const variants = names.filter((key) => key.endsWith('.note')).sort();
+    assert.deepEqual(variants, ['changes.added.note', 'changes.files.note', 'changes.removed.note', 'changes.resized.note']);
+    i18n.setLang('tr');
+    try {
+      assert.deepEqual(['files', 'added', 'removed', 'resized'].map((key) => i18n.t(`changes.${key}`)), ['Dosya', 'Eklenen dosyalar', 'Silinen dosyalar', 'Büyüyen ve küçülen dosyalar']);
+      i18n.setVariant('note');
+      assert.deepEqual(['files', 'added', 'removed', 'resized'].map((key) => i18n.t(`changes.${key}`)), ['Not', 'Eklenen notlar', 'Silinen notlar', 'Büyüyen ve küçülen notlar']);
+      assert.deepEqual(['newlyBroken', 'noLongerBroken', 'tokens', 'title'].map((key) => i18n.t(`changes.${key}`)), ['Yeni kırık bağlar', 'Artık kırık olmayan bağlar', 'Her oturum', 'Ne değişti']);
+      i18n.setLang('en');
+      assert.deepEqual(['files', 'added', 'removed', 'resized'].map((key) => i18n.t(`changes.${key}`)), ['Notes', 'Added notes', 'Removed notes', 'Notes that grew or shrank']);
+      assert.deepEqual(['newlyBroken', 'noLongerBroken'].map((key) => i18n.t(`changes.${key}`)), ['Newly broken links', 'Links no longer broken']);
+    } finally {
+      i18n.setVariant('');
+      i18n.setLang('en');
+    }
+  });
+
+  it('every string of the section has a kind the page can ask for it with, and every kind has its string: the buttons, the notices, the totals, the lists, and the words the page names', () => {
+    const literal = ['title', 'choose', 'base', 'range', 'none', 'noDay', 'noWeek', 'everySession', 'everySessionDelta'];
+    const kinds = [...core.CHANGE_PERIODS, 'off', 'inside', 'failed', 'tokens', 'files', ...core.CHANGE_LISTS, 'grew', 'shrank'];
+    const have = [...new Set(names.map((key) => key.slice('changes.'.length).replace(/\.note$/, '')))].sort();
+    assert.deepEqual(have, [...new Set([...literal, ...kinds])].sort());
+    for (const name of literal) assert.ok(appSource.includes(`t('changes.${name}'`), `${name} is not asked for by name`);
+    for (const prefix of ['changes.${period}', 'changes.${view.notice.kind}', 'changes.${key}', 'changes.${direction}']) assert.ok(appSource.includes(`t(\`${prefix}\``), prefix);
+  });
+});

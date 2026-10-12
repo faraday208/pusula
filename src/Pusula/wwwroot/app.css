@@ -1773,8 +1773,8 @@ tr.live-new > * {
 
 /* ---- Overview --------------------------------------------------------------------------- */
 
-/* One column in reading order: title and budget, the errors, the layers, what is to be reviewed, memory. The errors and what is to
-   be reviewed are in one wrapper (.ov-issues) that is not a box here, so `order` can put the layers between them. Where #content is
+/* One column in reading order: title and budget, what changed, the errors, the layers, what is to be reviewed, memory. The errors and what
+   is to be reviewed are in one wrapper (.ov-issues) that is not a box here, so `order` can put the layers between them. Where #content is
    1100px wide or more the wrapper is the second column beside the rest, the errors above what is to be reviewed: 36px apart, and
    between 360 and 420px wide, so the left column keeps the 590px or more the layers table needs. Below that (a 1280px window has
    990px beside its tree) the page is one column, which has the room. */
@@ -1815,24 +1815,29 @@ tr.live-new > * {
   order: 2;
 }
 
-.ov-errors {
+/* What changed: after the budget, and in a source of notes after where to start (3). */
+.ov-changes {
   order: 4;
 }
 
-.ov-layers {
+.ov-errors {
   order: 5;
 }
 
-.ov-review {
+.ov-layers {
   order: 6;
 }
 
-.ov-memory {
+.ov-review {
   order: 7;
 }
 
+.ov-memory {
+  order: 8;
+}
+
 /* A source of notes has no budget, layers or memory: the notes of a tag come first (it is where the reader arrives), then where to start (the entry
-   note and two short lists), the errors and the tags, and the issues are the same two sections as everywhere. */
+   note and two short lists), what changed, the errors and the tags, and the issues are the same two sections as everywhere. */
 .ov-tagged {
   order: 2;
 }
@@ -1842,7 +1847,7 @@ tr.live-new > * {
 }
 
 .ov-tags {
-  order: 5;
+  order: 6;
 }
 
 .section h2 {
@@ -1854,10 +1859,12 @@ tr.live-new > * {
 @container content (min-width: 1100px) {
   .overview {
     grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
-    grid-template-rows: auto auto auto 1fr;
+    grid-template-rows: auto auto auto auto auto 1fr;
     grid-template-areas:
       "head head"
       "budget issues"
+      "front issues"
+      "changes issues"
       "layers issues"
       "memory issues";
     column-gap: 36px;
@@ -1870,6 +1877,10 @@ tr.live-new > * {
 
   .ov-budget {
     grid-area: budget;
+  }
+
+  .ov-changes {
+    grid-area: changes;
   }
 
   .ov-issues {
@@ -1890,7 +1901,7 @@ tr.live-new > * {
   }
 
   .ov-front {
-    grid-area: layers;
+    grid-area: front;
   }
 
   .ov-tags {
@@ -2221,6 +2232,166 @@ a.issue-chip:hover {
   text-align: center;
 }
 
+/* ---- What changed ----------------------------------------------------------------------- */
+
+/* The title and, beside it (under it where the section is narrow), the two buttons that choose what is compared with: a pair in the page's own kind of
+   switch (the language is one), the choice on the accent tint and in bold, so that it is not colour alone. Nothing in this section is red or green: a file
+   that grew is not an error, so a difference is text with its sign. */
+.changes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  margin: 0 0 10px;
+}
+
+.changes-head h2 {
+  margin: 0;
+}
+
+.changes-switch {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.changes-btn {
+  padding: 2px 10px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.changes-btn:hover {
+  background: var(--hover);
+}
+
+.changes-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* The pair clips what is outside it, so the keyboard's mark goes inside. */
+.changes-btn:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Where the colours are the system's the tint is gone and the bold is all that is left: the choice is marked by a frame as well. */
+@media (forced-colors: active) {
+  .changes-btn[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+/* Two quiet lines under the head: what is the matter with today's summary, and what the section compares with. */
+.change-note,
+.change-base {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.change-note + .change-base {
+  margin-top: 6px;
+}
+
+/* The totals before and after ("Her oturum ~12K to ~12.4K +365"), side by side where there is room for both. */
+.change-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 28px;
+  margin: 10px 0 0;
+}
+
+.change-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+
+.change-total dt {
+  color: var(--muted);
+}
+
+.change-total dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A difference is the colour of any figure: more is not worse and less is not better. */
+.change-delta {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.change-sentence {
+  margin: 10px 0 0;
+}
+
+.change-list {
+  margin: 16px 0 0;
+}
+
+.change-title {
+  margin: 0 0 4px;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.change-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change-rows > li {
+  padding: 3px 0;
+}
+
+/* A file: how it loads and its path, and at the end of the row the differences. Where the row has no room for both the differences go under the
+   path (as the details of an issue do), not over its name. */
+.change-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  min-width: 0;
+}
+
+.change-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.change-numbers {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.change-every {
+  color: var(--muted);
+}
+
+.change-list .more-btn {
+  margin: 4px 0 0 -8px;
+}
+
 /* ---- Layers, memory --------------------------------------------------------------------- */
 
 .legend-block {
@@ -2407,6 +2578,21 @@ a.issue-chip:hover {
 .path-link:hover .file-start,
 .path-link:hover .file-end {
   text-decoration: underline;
+}
+
+/* A path with no address (a file that is gone): the path as everywhere, in the colour of text. It leads nowhere, so nothing is underlined under the pointer
+   and it is no 40px control under touch. */
+.path-link.is-plain {
+  min-height: 0;
+  color: var(--text);
+  cursor: default;
+}
+
+.path-link.is-plain:hover .path-name,
+.path-link.is-plain:hover .proj-name,
+.path-link.is-plain:hover .file-start,
+.path-link.is-plain:hover .file-end {
+  text-decoration: none;
 }
 
 /* In a table the project's name and place wrap instead: a row has the height for it, and nothing is cut. */
@@ -4174,6 +4360,7 @@ a.source-body:focus-visible::after {
   .entry-card,
   .tag-chips .tag-chip,
   .tagged-close,
+  .changes-btn,
   .error-link,
   .release-link,
   a.embed-card {

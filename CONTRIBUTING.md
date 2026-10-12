@@ -43,7 +43,8 @@ Give folders as absolute paths: `dotnet run` starts the server in `src/Pusula`, 
 
 Please keep to these. [CLAUDE.md](CLAUDE.md) has the same rules in more detail, with the layout of the code.
 
-- **Read-only.** pusula never writes to a folder it shows. The only file it writes is its own `sources.json`.
+- **Read-only.** pusula never writes to a folder it shows. It writes only files of its own: `sources.json` and the daily
+  summaries of **What changed** in its state folder.
 - **Only `.md` files** are indexed and served.
 - **The UI talks to the server only through the JSON API.** The server never renders HTML; the UI never sees the file system.
 - **Test data is synthetic.** No real configuration content, people, project names, host names or IP addresses.

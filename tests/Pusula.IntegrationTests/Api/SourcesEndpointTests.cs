@@ -200,6 +200,7 @@ public sealed class SourcesEndpointTests(SourcesFixture fixture) : IClassFixture
     [Theory]
     [InlineData("tree")]
     [InlineData("overview")]
+    [InlineData("changes")]
     [InlineData("file?path=Home.md")]
     [InlineData("events")]
     public async Task Get_UnknownSource_Is404WithProblemDetails(string endpoint)
@@ -217,6 +218,7 @@ public sealed class SourcesEndpointTests(SourcesFixture fixture) : IClassFixture
     [Theory]
     [InlineData("tree")]
     [InlineData("overview")]
+    [InlineData("changes")]
     [InlineData("file?path=Home.md")]
     [InlineData("file")]
     [InlineData("events")]

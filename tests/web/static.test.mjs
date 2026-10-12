@@ -67,8 +67,8 @@ describe('same-origin only', () => {
     const literal = [...app.matchAll(/\b(?:getJson|fetch|EventSource)\(\s*['`]([^'`]+)/g)].map((match) => match[1]);
     assert.deepEqual(literal, ['/api/sources', '/api/browse/found'], 'a literal address is the list of sources, or the folders the picker lists first, and nothing else');
     const viaSource = [...app.matchAll(/\b(?:getJson|EventSource)\(sourceUrl\(([^)]*)\)/g)].map((match) => match[1]);
-    assert.equal(viaSource.length, 4, viaSource.join(' | '));
-    assert.deepEqual(viaSource.map((argument) => argument.replace(/[^a-z]/g, '').slice(0, 8)), ['tree', 'overview', 'filepath', 'events'].map((name) => name.slice(0, 8)));
+    assert.equal(viaSource.length, 5, viaSource.join(' | '));
+    assert.deepEqual(viaSource.map((argument) => argument.replace(/[^a-z]/g, '').slice(0, 8)), ['tree', 'changes', 'overview', 'filepath', 'events'].map((name) => name.slice(0, 8)));
     const viaBrowse = [...app.matchAll(/\bgetJson\(browseUrl\(([^)]*)\)/g)].map((match) => match[1]);
     assert.equal(viaBrowse.length, 1, 'the picker reads a folder in one place');
     const every = [...app.matchAll(/\b(?:getJson|fetch|EventSource)\(/g)].length;
@@ -142,20 +142,20 @@ describe('overview layout hooks (app.js <-> app.css)', () => {
     assert.match(wide[1], /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(360px,\s*420px\)/, 'the issues column is 360 to 420px');
     const rows = [...wide[1].match(/grid-template-areas:([^;]*);/)[1].matchAll(/"([^"]*)"/g)].map((match) => match[1].trim().split(/\s+/));
     assert.deepEqual(rows, [
-      ['head', 'head'], ['budget', 'issues'], ['layers', 'issues'], ['memory', 'issues'],
-    ], 'the issues column spans every row beside the budget, the layers and the memory');
-    for (const [cls, area] of [['ov-head', 'head'], ['ov-budget', 'budget'], ['ov-issues', 'issues'], ['ov-layers', 'layers'], ['ov-memory', 'memory']]) {
+      ['head', 'head'], ['budget', 'issues'], ['front', 'issues'], ['changes', 'issues'], ['layers', 'issues'], ['memory', 'issues'],
+    ], 'the issues column spans every row beside the budget, where to start (a source of notes), what changed, the layers and the memory');
+    for (const [cls, area] of [['ov-head', 'head'], ['ov-budget', 'budget'], ['ov-changes', 'changes'], ['ov-issues', 'issues'], ['ov-layers', 'layers'], ['ov-memory', 'memory']]) {
       assert.match(css, new RegExp(`\\.${cls}\\s*\\{\\s*grid-area:\\s*${area};`), cls);
     }
     // The sections are appended in DOM order (the two issue sections come in one wrapper, `issuesBlock`); a single column puts them in the
-    // order of the page with `order` (below).
-    const order = [...scripts['app.js'].matchAll(/page\.append\(overviewHead\(data\),([^;]*)\);/g)].flatMap((match) => match[1].match(/\w+(?:Section|Block)/g));
-    assert.deepEqual(order, ['budgetSection', 'issuesBlock', 'layersSection', 'memorySection']);
+    // order of the page with `order` (below). What changed is a section only where the server has an answer.
+    const order = functionSource('overviewPage').match(/\w+(?:Section|Block)(?=\()/g);
+    assert.deepEqual(order, ['budgetSection', 'changesSection', 'issuesBlock', 'layersSection', 'memorySection']);
   });
 
-  it('one column: head, budget, errors, layers, what is to be reviewed, memory; the wrapper of the two issue sections is not a box there and is the second column where it is wide', () => {
+  it('one column: head, budget, what changed, errors, layers, what is to be reviewed, memory; the wrapper of the two issue sections is not a box there and is the second column where it is wide', () => {
     const orderOf = (cls) => Number(new RegExp(`(?:^|\\n)\\.${cls}\\s*\\{\\s*order:\\s*(\\d+);`).exec(css)?.[1]);
-    const numbers = ['ov-head', 'ov-budget', 'ov-errors', 'ov-layers', 'ov-review', 'ov-memory'].map(orderOf);
+    const numbers = ['ov-head', 'ov-budget', 'ov-changes', 'ov-errors', 'ov-layers', 'ov-review', 'ov-memory'].map(orderOf);
     assert.ok(numbers.every(Number.isFinite), numbers.join(','));
     assert.deepEqual([...numbers].sort((a, b) => a - b), numbers, 'the order values are the reading order');
     assert.equal(new Set(numbers).size, numbers.length);
@@ -2095,14 +2095,14 @@ describe('a source of notes is read as notes (S1)', () => {
     assert.match(css, /\.embed-icon\s*\{/);
   });
 
-  it('the notes overview sits in the same grid as the other: the notes of a tag, where to start and the tags in the places of the budget, the layers and the memory, in one column in reading order', () => {
+  it('the notes overview sits in the same grid as the other: the notes of a tag and the tags in the places of the budget and the memory, where to start in a row of its own above what changed, in one column in reading order', () => {
     const wide = css.match(/@container content \(min-width: 1100px\)\s*\{([\s\S]*?)\n\}\n/)?.[1] ?? '';
     assert.match(wide, /\.ov-tagged\s*\{\s*grid-area: budget;/);
-    assert.match(wide, /\.ov-front\s*\{\s*grid-area: layers;/);
+    assert.match(wide, /\.ov-front\s*\{\s*grid-area: front;/);
     assert.match(wide, /\.ov-tags\s*\{\s*grid-area: memory;/);
     const orderOf = (cls) => Number(new RegExp(`(?:^|\\n)\\.${cls}\\s*\\{\\s*order:\\s*(\\d+);`).exec(css)?.[1]);
-    const [head, tagged, front, errors, tags, review] = ['ov-head', 'ov-tagged', 'ov-front', 'ov-errors', 'ov-tags', 'ov-review'].map(orderOf);
-    assert.ok(head < tagged && tagged < front && front < errors && errors < tags && tags < review, 'head, the notes of a tag, where to start, errors, tags, what is to be reviewed');
+    const [head, tagged, front, changes, errors, tags, review] = ['ov-head', 'ov-tagged', 'ov-front', 'ov-changes', 'ov-errors', 'ov-tags', 'ov-review'].map(orderOf);
+    assert.ok(head < tagged && tagged < front && front < changes && changes < errors && errors < tags && tags < review, 'head, the notes of a tag, where to start, what changed, errors, tags, what is to be reviewed');
   });
 
   it('the chips and the cards are drawn with the tokens of the page: the text colour on a chip, no accent text on the accent tint, no red', () => {
@@ -3226,6 +3226,288 @@ describe('the version of pusula and the link to its release notes', () => {
       const color = (name) => parseColor(tokens[name]);
       assert.ok(contrast(color('--muted'), color('--bg')) >= 4.5, 'the line');
       assert.ok(contrast(color('--accent-text'), color('--bg')) >= 4.5, 'the link');
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// #7: what changed since an earlier day
+// ---------------------------------------------------------------------------------------------
+
+describe('what changed: the answer is asked for with the overview, and is an extra (#7)', () => {
+  it('both are asked for together; an answer of the changes that fails is no section and no error page, for the overview alone makes the page', () => {
+    const show = wholeFunction('showOverview');
+    assert.match(show, /const \[data, changes\] = await Promise\.all\(\[getJson\(sourceUrl\('overview'\)\), loadChanges\(\)\]\);/);
+    assert.match(show, /state\.overview = data;\s*state\.changes = changes;\s*state\.error = null;/);
+    const load = wholeFunction('loadChanges');
+    assert.match(load, /return changesData\(await Promise\.race\(\[getJson\(sourceUrl\('changes'\)\), late\]\)\);/);
+    assert.match(load, /\} catch \{\s*return null;\s*\} finally \{\s*window\.clearTimeout\(timer\);\s*\}/, 'a 404 of an older server, a network error, an answer that is not JSON, one that is too late');
+    assert.ok(!/setError|throw/.test(load), 'it never fails: the overview is what the page waits for');
+  });
+
+  it('and it does not wait for ever: an answer that is slower than CHANGES_WAIT_MS is none, so a server that hangs on it (a disk that does not answer) does not hold up the page', () => {
+    assert.match(code('app.js'), /const CHANGES_WAIT_MS = 3000;/);
+    assert.match(wholeFunction('loadChanges'), /timer = window\.setTimeout\(reject, CHANGES_WAIT_MS\);/);
+  });
+
+  it('every time the overview is shown, a live refresh included (that is what makes the server keep the summary of the day); another source starts without it', () => {
+    assert.match(wholeFunction('onChanged'), /await showOverview\(\{ keepScroll: true, live: true \}\)/);
+    assert.match(wholeFunction('resetSourceView'), /state\.overview = null;\s*state\.changes = null;/);
+    assert.match(code('app.js'), /\n  changes: null,/);
+  });
+
+  it('what it is compared with is part of what the page remembers for a source, and read back with the rest', () => {
+    assert.match(code('app.js'), /\n  changesSince: 'day',/);
+    assert.match(wholeFunction('loadSourceState'), /state\.changesSince = ui\.changesSince;/);
+    assert.match(wholeFunction('saveUi'), /uiStateJson\(state\)/);
+  });
+});
+
+describe('what changed: where it sits (#7)', () => {
+  it('a Claude configuration has it after the budget and before the issues, the layers and the memory; a source of notes after where to start; both leave it out where the server gave no answer', () => {
+    const claude = wholeFunction('overviewPage');
+    assert.match(claude, /page\.append\(overviewHead\(data\), budgetSection\(data\)\);\s*const changes = changesSection\(\);\s*if \(changes !== null\) page\.append\(changes\);\s*page\.append\(issuesBlock\(data\), layersSection\(data\), memorySection\(data\)\);/);
+    const notes = wholeFunction('notesOverviewPage');
+    assert.match(notes, /if \(front !== null\) page\.append\(front\);\s*const changes = changesSection\(\);\s*if \(changes !== null\) page\.append\(changes\);\s*page\.append\(issuesBlock\(data\), tagsSection\(data\)\);/);
+    const section = wholeFunction('changesSection');
+    assert.match(section, /if \(state\.changes === null\) return null;/);
+    assert.match(section, /el\('section', 'section ov-changes'\)/);
+  });
+
+  it('wide it is a row of the left column, the issues still the column on the right: head, budget, changes, layers, memory for a Claude configuration; head, notes of a tag, where to start, changes, tags for notes', () => {
+    const wide = css.match(/@container content \(min-width: 1100px\)\s*\{([\s\S]*?)\n\}\n/)?.[1] ?? '';
+    const rows = [...wide.match(/grid-template-areas:([^;]*);/)[1].matchAll(/"([^"]*)"/g)].map((match) => match[1].trim().split(/\s+/));
+    assert.ok(rows.slice(1).every((row) => row[1] === 'issues'), 'the issues are the second column of every row under the head');
+    const left = rows.map((row) => row[0]);
+    assert.equal(wide.match(/grid-template-rows:\s*([^;]*);/)[1].trim().split(/\s+/).length, rows.length, 'a track for each row');
+    const areaOf = (cls) => new RegExp(`\\.${cls}\\s*\\{\\s*grid-area:\\s*(\\w+);`).exec(wide)?.[1];
+    for (const classes of [['ov-head', 'ov-budget', 'ov-changes', 'ov-layers', 'ov-memory'], ['ov-head', 'ov-tagged', 'ov-front', 'ov-changes', 'ov-tags']]) {
+      const places = classes.map((cls) => left.indexOf(areaOf(cls)));
+      assert.ok(places.every((place) => place >= 0), `${classes.join(' ')}: an area that is not a row`);
+      assert.deepEqual([...places].sort((a, b) => a - b), places, `${classes.join(' ')}: the rows are in reading order`);
+      assert.equal(new Set(places).size, places.length, `${classes.join(' ')}: two sections in one row`);
+    }
+  });
+
+  it('in one column every section that can be on a page together with another has a number of its own, in the order of the page', () => {
+    const orderOf = (cls) => Number(new RegExp(`(?:^|\\n)\\.${cls}\\s*\\{\\s*order:\\s*(\\d+);`).exec(css)?.[1]);
+    for (const classes of [
+      ['ov-head', 'ov-budget', 'ov-changes', 'ov-errors', 'ov-layers', 'ov-review', 'ov-memory'],
+      ['ov-head', 'ov-tagged', 'ov-front', 'ov-changes', 'ov-errors', 'ov-tags', 'ov-review'],
+    ]) {
+      const numbers = classes.map(orderOf);
+      assert.ok(numbers.every(Number.isFinite), numbers.join(','));
+      assert.deepEqual([...numbers].sort((a, b) => a - b), numbers, `${classes.join(' ')}: the order values are the reading order`);
+      assert.equal(new Set(numbers).size, numbers.length, `${classes.join(' ')}: a tie would be settled by where the sections are in the document`);
+    }
+  });
+});
+
+describe('what changed: the head and its two buttons (#7)', () => {
+  it('the title is an h2 and beside it are two buttons in a group that has a name; the one that is the choice says so, and the keyboard reaches both', () => {
+    assert.match(wholeFunction('changesSection'), /head\.append\(el\('h2', null, t\('changes\.title'\)\), changesSwitch\(body\)\)/);
+    const body = wholeFunction('changesSwitch');
+    assert.match(body, /group\.setAttribute\('role', 'group'\)/);
+    assert.match(body, /group\.setAttribute\('aria-label', t\('changes\.choose'\)\)/);
+    assert.match(body, /CHANGE_PERIODS\.map\(\(period\) => \{/, 'one button for each choice');
+    assert.match(body, /el\('button', 'changes-btn', t\(`changes\.\$\{period\}`\)\)/);
+    assert.match(body, /button\.type = 'button'/);
+    assert.match(body, /button\.setAttribute\('aria-pressed', String\(state\.changesSince === period\)\)/);
+    assert.ok(!/tabIndex|tabindex/i.test(body), 'a button is in the order of the keyboard by itself');
+  });
+
+  it('a click keeps the choice for the source and draws what is under the head again in place: the buttons stay, and so does the keyboard on the one that was used', () => {
+    const body = wholeFunction('changesSwitch');
+    assert.match(body, /if \(state\.changesSince === period\) return;\s*state\.changesSince = period;/);
+    assert.match(body, /buttons\.forEach\(\(other, index\) => other\.setAttribute\('aria-pressed', String\(CHANGE_PERIODS\[index\] === period\)\)\);/);
+    assert.match(body, /body\.replaceChildren\(\.\.\.changesBody\(\)\);\s*saveUi\(\);\s*scheduleFit\(\);/);
+    assert.ok(!/renderContent/.test(body), 'the page is not drawn again');
+  });
+
+  it('a live refresh draws the page again and gives the keyboard back to the button that had it (data-keep), and keeps the choice', () => {
+    assert.match(wholeFunction('changesSwitch'), /button\.dataset\.keep = `changes:\$\{period\}`/);
+    assert.match(wholeFunction('keptFocus'), /!node\.dataset\.keep\) return null/);
+    assert.match(wholeFunction('changesBody'), /changesView\(state\.changes, state\.changesSince,/, 'the choice is read from the state, which a live refresh leaves as it is');
+  });
+
+  it('the buttons are the page\'s own kind of switch, the choice on the accent tint and in bold: not colour alone', () => {
+    assert.match(ownRule('.changes-switch') ?? '', /display: inline-flex/);
+    assert.match(ownRule('.changes-switch') ?? '', /border: 1px solid var\(--border\)/);
+    assert.match(ownRule('.changes-btn') ?? '', /color: var\(--muted\)/);
+    const pressed = ownRule('.changes-btn[aria-pressed="true"]') ?? '';
+    assert.match(pressed, /background: var\(--accent-soft\)/);
+    assert.match(pressed, /color: var\(--text\)/);
+    assert.match(pressed, /font-weight: 600/);
+    assert.match(ownRule('.changes-btn:focus-visible') ?? '', /outline-offset: -2px/, 'the pair clips what is outside it');
+    assert.match(css, /@media \(forced-colors: active\)\s*\{\s*\.changes-btn\[aria-pressed="true"\]\s*\{\s*outline: 2px solid Highlight;/, 'without the tint the choice has a frame');
+    assert.match(ownRule('.changes-head') ?? '', /flex-wrap: wrap/, 'under the title where the section is narrow');
+  });
+
+  it('under touch they are 40px', () => {
+    const coarse = css.match(/@media \(pointer: coarse\)\s*\{([\s\S]*?)\n\}\n/)?.[1] ?? '';
+    const sized = coarse.match(/([^{}]*)\{\s*min-height: var\(--touch\);\s*\}/)?.[1] ?? '';
+    assert.ok(sized.includes('.changes-btn'), '.changes-btn is not made touch-sized');
+  });
+});
+
+describe('what changed: what is under the head (#7)', () => {
+  it('in this order: what is the matter with today\'s summary, what is compared with, the totals, the sentence that stands for the lists, the lists', () => {
+    const body = wholeFunction('changesBody');
+    const at = ["view.notice !== null", "'changes.base'", 'changeTotals(view.totals)', 'changeSentence(view.sentence)', 'view.lists.map'].map((text) => body.indexOf(text));
+    assert.ok(at.every((place) => place >= 0), at.join(','));
+    assert.deepEqual([...at].sort((a, b) => a - b), at);
+    assert.match(body, /changesView\(state\.changes, state\.changesSince, \{ notes: isNotes\(\) \}\)/, 'what to say is decided in core.js, and a source of notes is told');
+    assert.match(body, /t\(`changes\.\$\{view\.notice\.kind\}`, \{ reason: view\.notice\.reason \}\)/);
+    assert.match(body, /changeWhen\(view\.when, getLang\(\)\)/);
+    assert.match(body, /if \(when !== ''\) nodes\.push\(el\('p', 'muted change-base', t\('changes\.base', \{ when \}\)\)\)/, 'a date that is none is no line');
+  });
+
+  it('the notice and the line of what it was compared with are quiet text', () => {
+    const body = wholeFunction('changesBody');
+    assert.match(body, /el\('p', 'muted change-note'/);
+    assert.match(body, /el\('p', 'muted change-base'/);
+    for (const selector of ['.change-note, .change-base']) assert.match(ownRule(selector) ?? '', /font-size: 13px/);
+  });
+
+  it('the totals: a pair of a name and what it was and is, the difference written only where there is one', () => {
+    const body = wholeFunction('changeTotals');
+    assert.match(body, /el\('dl', 'change-totals'\)/);
+    assert.match(body, /el\('dd', null, t\('changes\.range', \{ before, after \}\)\)/);
+    assert.match(body, /if \(delta !== ''\) value\.append\(' ', el\('span', 'change-delta', delta\)\)/);
+    assert.match(body, /el\('dt', null, t\(`changes\.\$\{key\}`\)\)/);
+  });
+
+  it('the sentences that stand for the lists are quiet where they say that something is missing and plain where they say that nothing changed', () => {
+    const body = wholeFunction('changeSentence');
+    assert.match(body, /if \(kind === 'none'\) return el\('p', 'change-sentence', t\('changes\.none'\)\)/);
+    assert.match(body, /el\('p', 'muted change-sentence', kind === 'noWeek' \? t\('changes\.noWeek', \{ date: changeWhen\(day, getLang\(\)\) \}\) : t\('changes\.noDay'\)\)/);
+  });
+});
+
+describe('what changed: the lists (#7)', () => {
+  it('each is a small block: an h3 with its name and its count, and its rows through limitedList, which folds past eight; every comparison folds its lists by itself', () => {
+    const body = wholeFunction('changeList');
+    assert.match(body, /el\('h3', 'change-title'\)/);
+    assert.match(body, /title\.append\(t\(`changes\.\$\{key\}`\), ' ', el\('span', 'count', String\(rows\.length\)\)\)/);
+    assert.match(body, /limitedList\(`changes:\$\{state\.changesSince\}:\$\{key\}`, 'change-rows', items\)/);
+    assert.match(body, /key === 'newlyBroken' \|\| key === 'noLongerBroken'/);
+    assert.match(wholeFunction('changesBody'), /view\.lists\.map\(\(list\) => changeList\(list, issues, files\)\)/, 'a list with no rows is not in view.lists');
+  });
+
+  it('a file: how it loads, its path and the differences at the end of its row; a removed file is plain text, for a link would lead nowhere', () => {
+    const body = wholeFunction('changeFileRow');
+    assert.match(body, /if \(!notes && LOAD_MODES\.includes\(enumName\(entry\.loadMode\)\)\) file\.append\(loadDot\(entry\.loadMode\)\)/);
+    assert.match(body, /file\.append\(pathLink\(entry\.path, \{ skillFirst: true, plain: key === 'removed' \}\)\)/);
+    assert.match(body, /if \(!notes\) \{\s*const numbers = changeNumbers\(changeDeltas\(key, entry\)\);\s*if \(numbers !== null\) row\.append\(numbers\);/, 'a note has no tokens');
+    assert.match(wholeFunction('pathLink'), /if \(!plain\) link\.href = fileHash\(sid\(\), path, heading, line\);/);
+    assert.match(wholeFunction('pathLink'), /el\('a', plain \? 'path-link is-plain' : 'path-link'\)/);
+  });
+
+  it('the differences of a row: the tokens, then quietly the part that loads every session (the words alone when it is all of it); neither when nothing changed', () => {
+    const body = wholeFunction('changeNumbers');
+    assert.match(body, /if \(tokens === '' && everySession === null\) return null;/);
+    assert.match(body, /everySession\.delta === null \? t\('changes\.everySession'\) : t\('changes\.everySessionDelta', \{ delta: everySession\.delta \}\)/);
+    assert.match(body, /el\('span', 'change-every', tokens === '' \? words : ` · \$\{words\}`\)/, 'no dot before words that follow nothing');
+    assert.match(body, /numbers\.title = t\('tokens\.hint'\)/, 'the tokens are an estimate, as everywhere');
+  });
+
+  it('a link that became broken is a row of the errors; one that stopped being broken has no line, and its file is a link only while it is in the tree', () => {
+    const body = wholeFunction('changeLinkRow');
+    assert.match(body, /if \(key === 'newlyBroken' && positiveLine\(item\.line\) !== null\) \{\s*row\.append\(\.\.\.issues\.broken\(item\)\);/);
+    assert.match(body, /pathLink\(item\.source, \{ plain: !files\.has\(item\.source\) \}\)/);
+    assert.match(body, /issueLine\(source, rawCode\(item\.raw\), el\('span', 'muted tail', `\(\$\{t\(`kind\.\$\{enumName\(item\.kind\)\}`\)\}\)`\)\)/);
+    assert.match(wholeFunction('changesBody'), /new Set\(flattenFiles\(state\.tree\?\.nodes\)\.map\(\(file\) => file\.path\)\)/);
+  });
+
+  it('a path that is plain text is the colour of text, shows no pointer, underlines nothing and is no 40px control; it still gives up its upper folders first', () => {
+    const plain = ownRule('.path-link.is-plain') ?? '';
+    assert.match(plain, /color: var\(--text\)/);
+    assert.match(plain, /cursor: default/);
+    assert.match(plain, /min-height: 0/);
+    const hover = ownRule('.path-link.is-plain:hover .path-name, .path-link.is-plain:hover .proj-name, .path-link.is-plain:hover .file-start, .path-link.is-plain:hover .file-end') ?? '';
+    assert.match(hover, /text-decoration: none/);
+    assert.match(wholeFunction('fitPathHeads'), /querySelectorAll\('a\.path-link'\)/, 'it is an a without an address, as the found folders of the picker are');
+  });
+
+  it('a row keeps its differences at its end; where it has no room for both they go under the path, not over its name', () => {
+    const row = ownRule('.change-row') ?? '';
+    assert.match(row, /display: flex/);
+    assert.match(row, /flex-wrap: wrap/);
+    assert.match(ownRule('.change-file') ?? '', /max-width: 100%/);
+    assert.match(ownRule('.change-numbers') ?? '', /margin-left: auto/);
+    assert.match(ownRule('.change-numbers') ?? '', /white-space: nowrap/);
+    assert.match(ownRule('.change-numbers') ?? '', /font-variant-numeric: tabular-nums/);
+  });
+
+  it('the pieces exist on both sides', () => {
+    const names = ['ov-changes', 'changes-head', 'changes-switch', 'changes-btn', 'change-note', 'change-base', 'change-totals', 'change-total', 'change-delta', 'change-sentence',
+      'change-list', 'change-title', 'change-rows', 'change-row', 'change-file', 'change-numbers', 'change-every', 'is-plain'];
+    for (const name of names) {
+      assert.match(code('app.js'), new RegExp(`['\`" ]${name}['\`" ]`), `${name} is not used in app.js`);
+      assert.match(css, new RegExp(`\\.${name}\\b`), `${name} has no rule in app.css`);
+    }
+  });
+});
+
+describe('what changed: nothing in it judges (#7)', () => {
+  const classes = ['ov-changes', 'changes-head', 'changes-switch', 'changes-btn', 'change-note', 'change-base', 'change-totals', 'change-total', 'change-delta', 'change-sentence',
+    'change-list', 'change-title', 'change-rows', 'change-row', 'change-file', 'change-numbers', 'change-every', 'is-plain'];
+  const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, selector]) => classes.some((name) => new RegExp(`\\.${name}(?![\\w-])`).test(selector)))
+    .map(([, selector, body]) => ({ selector: selector.trim().replace(/\s+/g, ' '), body }));
+
+  it('finds its rules (guards the scan itself)', () => {
+    assert.ok(rules.length >= 20, `${rules.length} rules`);
+    assert.ok(rules.some((rule) => rule.selector === '.change-delta'));
+    assert.ok(rules.some((rule) => rule.selector.startsWith('.path-link.is-plain')));
+  });
+
+  it('no rule of the section is red, green, a colour of an error or of a success, a load marker or any colour of its own: it uses the text and the quiet grey, the tint of the accent and the hover', () => {
+    for (const { selector, body } of rules) {
+      assert.ok(!/--danger|--on-danger|--live|--warn|--lm-|--fresh|#[0-9a-f]{3,8}\b|\b(?:red|green|orange|yellow|crimson)\b|\brgba?\(|\bhsla?\(/i.test(body), `${selector} has a colour that judges: ${body.trim()}`);
+    }
+    const colours = new Set(rules.flatMap(({ body }) => [...body.matchAll(/(?:^|[;\s])(?:color|background(?:-color)?|border(?:-color)?)\s*:\s*([^;]+);/g)].map((match) => match[1].trim())));
+    for (const value of colours) assert.match(value, /^(?:var\(--(?:text|muted|border|accent-soft|hover)\)|none|transparent|1px solid var\(--border\)|0)$/, value);
+  });
+
+  it('no piece of the page that makes the section sets a class of an error or a badge, or writes a style', () => {
+    for (const name of ['changesSection', 'changesSwitch', 'changesBody', 'changeTotals', 'changeSentence', 'changeList', 'changeFileRow', 'changeNumbers', 'changeLinkRow']) {
+      const body = wholeFunction(name);
+      assert.ok(!/tone-error|is-error|badge|danger|issue-clear|\.style\b|style\./.test(body), name);
+    }
+  });
+
+  it('a difference is text with its sign, as formatDelta writes it (the minus sign U+2212): changeDeltas and the totals of changesView are all the page has to write one', () => {
+    assert.match(code('core.js'), /formatDelta\(every, \{ tokens: true \}\)/);
+    assert.match(code('core.js'), /formatDelta\(every\[1\] - every\[0\], \{ tokens: true \}\)/);
+    assert.match(code('core.js'), /formatDelta\(files\[1\] - files\[0\]\)/);
+    assert.ok(!/formatDelta\(/.test(wholeFunction('changeNumbers') + wholeFunction('changeTotals')), 'the page never builds a sign itself');
+    assert.ok(!/['"`][+−-]['"`]/.test(wholeFunction('changeNumbers') + wholeFunction('changeTotals')), 'no sign of its own in a string');
+  });
+});
+
+describe('colour of the section (WCAG contrast of the real tokens) (#7)', () => {
+  for (const [theme, tokens] of [['light', lightTokens], ['dark', darkTokens]]) {
+    const color = (name) => parseColor(tokens[name]);
+    const bg = color('--bg');
+
+    it(`${theme}: the quiet lines, the names of the totals and the part that loads every session are the quiet grey on the page, 4.5:1`, () => {
+      for (const selector of ['.change-every', '.change-total dt']) assert.match(ownRule(selector) ?? '', /color: var\(--muted\)/, selector);
+      assert.ok(contrast(color('--muted'), bg) >= 4.5, `--muted on --bg: ${contrast(color('--muted'), bg).toFixed(2)}`);
+    });
+
+    it(`${theme}: the differences and the path of a file that is gone are the text colour on the page, 4.5:1`, () => {
+      assert.match(ownRule('.change-delta') ?? '', /color: var\(--text\)/);
+      assert.match(ownRule('.path-link.is-plain') ?? '', /color: var\(--text\)/);
+      assert.ok(contrast(color('--text'), bg) >= 4.5);
+    });
+
+    it(`${theme}: the button that is the choice is the text colour on the accent tint, and the other the quiet grey on the page and under the pointer, 4.5:1`, () => {
+      const chosen = over(color('--accent-soft'), bg);
+      assert.ok(contrast(color('--text'), chosen) >= 4.5, `--text on the choice: ${contrast(color('--text'), chosen).toFixed(2)}`);
+      assert.ok(contrast(color('--muted'), bg) >= 4.5, 'the other');
+      const hovered = over(color('--hover'), bg);
+      assert.ok(contrast(color('--muted'), hovered) >= 4.5, `--muted under the pointer: ${contrast(color('--muted'), hovered).toFixed(2)}`);
     });
   }
 });

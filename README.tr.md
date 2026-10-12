@@ -21,6 +21,8 @@ Senin bilgisayarında çalışır ve yalnız okur. Hiçbir veri bilgisayarından
   frontmatter'daki `name` ile bağlanır.
 - **Sağlık denetimi:** kırık bağlar, yetim dosyalar, henüz yazılmamış memory ya da not bağları, satırıyla
   frontmatter hataları.
+- **Ne değişti:** genel bakış klasörü dünkü ve bir hafta önceki hâliyle karşılaştırır: her oturumun tokenı; eklenen,
+  silinen, büyüyen ya da küçülen dosyalar; kırılan ve düzelen bağlar.
 - **Obsidian kasaları için:** Obsidian'ın yaptığı gibi çözülen wikilink'ler, etiketler, giriş notu, son değişen ve
   en çok bağ alan notlar.
 - **Canlı:** Claude (ya da sen) dosyaları düzenlerken sayfa kendiliğinden güncellenir.
@@ -116,7 +118,11 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
 
 ## Gizlilik ve güvenlik
 
-- **Salt-okunur.** pusula gösterdiği klasörlere asla yazmaz. Yazdığı tek dosya kendi `sources.json`'u.
+- **Salt-okunur.** pusula gösterdiği klasörlere asla yazmaz. Yalnız kendi dosyalarını yazar: `sources.json` ve
+  **Ne değişti** için her klasörün günde bir küçük özeti (dosya başına token ve kırık bağlar; 300 dosya için yaklaşık
+  30 KB). Özet, klasörün genel bakışı o gün ilk açıldığında alınır. Özetler Linux ve macOS'ta `~/.local/state/pusula/`
+  (`$XDG_STATE_HOME` tanımlıysa `$XDG_STATE_HOME/pusula/`), Windows'ta `%LOCALAPPDATA%\pusula\` içinde durur; bir
+  haftalığı saklanır, klasörü silersen hepsi unutulur.
 - **Yalnız `.md` dosyaları indekslenir ve sunulur**; `settings.json`, kimlik bilgileri ve öteki dosyalar sunucudan çıkmaz.
 - **Not klasörlerini tanımak notlarının küçük bir kısmını okur.** `.obsidian/` klasörü olmayan bir not klasörünü ayırt
   etmek için **Klasör seç…** notlarından bazılarının (klasör başına en çok 20) ilk birkaç kilobaytını okur ve yalnız

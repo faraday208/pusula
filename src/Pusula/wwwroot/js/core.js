@@ -1202,7 +1202,7 @@ export function arrivalTarget(route, saved) {
  * page the scroll position was measured on (a list shown past its first rows is taller than the same list
  * folded). `text` is what `uiStateJson` wrote, or anything at all: whatever is not of the right shape falls
  * back to the default. `{ issueOpen: Map<string, boolean>, moreOpen: Set, openBand: Set, memoryOpen, layersRestOpen,
- * legendOpen, propertiesOpen }`.
+ * legendOpen, propertiesOpen, changesSince }`, `changesSince` being one of `CHANGE_PERIODS`.
  */
 export function parseUiState(text) {
   let data = null;
@@ -1224,6 +1224,7 @@ export function parseUiState(text) {
     layersRestOpen: flag(data.layersRestOpen, false),
     legendOpen: flag(data.legendOpen, false),
     propertiesOpen: flag(data.propertiesOpen, true),
+    changesSince: changesPeriod(data.changesSince),
   };
 }
 
@@ -1237,6 +1238,7 @@ export function uiStateJson(ui) {
     layersRestOpen: ui.layersRestOpen,
     legendOpen: ui.legendOpen,
     propertiesOpen: ui.propertiesOpen,
+    changesSince: ui.changesSince,
   });
 }
 
@@ -1399,6 +1401,149 @@ export function pillTarget(rects, view) {
  */
 export function closedAncestor(path, open) {
   return ancestorDirs(path).find((dir) => !open.has(dir)) ?? null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// What changed since an earlier day (a section of the overview)
+// ---------------------------------------------------------------------------------------------
+
+/** What the section can compare with, the one it starts with first: the day before, or a week back. */
+export const CHANGE_PERIODS = ['day', 'week'];
+
+/** The lists of an answer of `.../changes`, in the order the section shows them. */
+export const CHANGE_LISTS = ['added', 'removed', 'resized', 'newlyBroken', 'noLongerBroken'];
+
+/** The `history` values that are no `Kept`, and the kind of notice each one gets. */
+const CHANGE_NOTICES = new Map([['Off', 'off'], ['InsideSource', 'inside'], ['WriteFailed', 'failed']]);
+
+/** `value` when it is one of `CHANGE_PERIODS`, otherwise `'day'`. */
+export function changesPeriod(value) {
+  return CHANGE_PERIODS.includes(value) ? value : 'day';
+}
+
+/** The answer of `.../changes` when it is one (an object that says whether today's summary is kept), otherwise null: anything else leaves the section out. */
+export function changesData(data) {
+  return data !== null && typeof data === 'object' && !Array.isArray(data) && typeof data.history === 'string' ? data : null;
+}
+
+/** A day as the server writes it (`2026-10-11`) as the start of that day here; null for anything else, and for a day that does not exist (`2026-02-31`). */
+function changeDay(text) {
+  const match = typeof text === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(text) : null;
+  if (match === null) return null;
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+}
+
+/** A moment as the server writes it (`2026-10-11T06:14:03+00:00`); null for anything else. It has to look like that: `Date.parse` takes "5" for a date. */
+function changeMoment(text) {
+  if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) return null;
+  const at = new Date(text);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+/**
+ * A day or a moment of the server (`2026-10-11`, `2026-10-11T06:14:03+00:00`) in the words of a reader of `lang`: the weekday, the day and the month (the year
+ * too when it is not the one `now` is in) and, for a moment, the time of day after a comma: "11 Ekim Pazar, 09:14", "Sunday 11 October, 09:14". A day is the day it
+ * says in whatever time zone this is, a moment is shown in this one. Empty for anything else.
+ */
+export function changeWhen(when, lang, now = new Date()) {
+  const day = changeDay(when);
+  const at = day ?? changeMoment(when);
+  if (at === null) return '';
+  const locale = lang === 'tr' ? 'tr-TR' : 'en-GB';
+  const date = new Intl.DateTimeFormat(locale, {
+    weekday: 'long', day: 'numeric', month: 'long', ...(at.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  }).format(at);
+  return day === null ? `${date}, ${at.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}` : date;
+}
+
+/**
+ * What a row of a list writes about the size of its file, from the `entry` of the list `key` (`added`, `removed`, `resized`). `tokens` is the difference
+ * in the tokens of the file as the page writes a difference (`+1.2K`, `−300`), empty when they did not change. `everySession` is the part of it that loads
+ * in every session: null when that did not change, `{ delta: null }` when it changed by as much as the whole file did (all of the file loads every session: the
+ * words alone say so), else `{ delta: '+40' }`.
+ */
+export function changeDeltas(key, entry) {
+  const count = (value) => (Number.isFinite(value) ? value : 0);
+  let tokens;
+  let every;
+  if (key === 'resized') {
+    tokens = count(entry?.tokensAfter) - count(entry?.tokensBefore);
+    every = count(entry?.everySessionTokensAfter) - count(entry?.everySessionTokensBefore);
+  } else {
+    const sign = key === 'removed' ? -1 : 1;
+    tokens = sign * count(entry?.tokens);
+    every = sign * count(entry?.everySessionTokens);
+  }
+  const delta = formatDelta(every, { tokens: true });
+  return {
+    tokens: formatDelta(tokens, { tokens: true }),
+    everySession: delta === '' ? null : { delta: every === tokens ? null : delta },
+  };
+}
+
+/**
+ * Which way an `entry` of the list `resized` went: `'grew'`, `'shrank'`, or null when its size is the same. A source of notes shows no tokens, so
+ * a note of that list says this in a word instead of a number; without it the list would not say which of the two each note did.
+ */
+export function changeDirection(entry) {
+  const count = (value) => (Number.isFinite(value) ? value : 0);
+  const delta = count(entry?.tokensAfter) - count(entry?.tokensBefore);
+  if (delta === 0) return null;
+  return delta > 0 ? 'grew' : 'shrank';
+}
+
+/** The rows of the list `key` of a comparison that name what they are about: a file (`path`) or a link (`source`, `raw`). */
+function changeRows(since, key) {
+  const list = Array.isArray(since?.[key]) ? since[key] : [];
+  const link = key === 'newlyBroken' || key === 'noLongerBroken';
+  return list.filter((item) => (link
+    ? typeof item?.source === 'string' && item.source !== '' && typeof item.raw === 'string'
+    : typeof item?.path === 'string' && item.path !== ''));
+}
+
+/**
+ * What the section says for a comparison of an answer of `.../changes` (`changes`), `{ notice, when, sentence, totals, lists }`. `period` (`CHANGE_PERIODS`)
+ * picks the comparison: `previousDay` or `previousWeek`.
+ * - `notice`: what is the matter with today's summary (`history` is not `Kept`), `{ kind: 'off' | 'inside' | 'failed', reason }`, `reason` being the server's
+ *   words for `failed` and empty for the others; otherwise null.
+ * - `when`: when the summary compared with was taken, for `changeWhen` (its day when its moment is none); null without a comparison.
+ * - `sentence`: a sentence that stands where the lists would: `{ kind: 'noDay' }` or `{ kind: 'noWeek', day }` where the answer has no comparison of that kind (`day`
+ *   is the first day pusula has a summary of), `{ kind: 'none' }` where nothing has changed. `noDay` says that pusula started keeping summaries today, which is not so
+ *   when today's was not kept, so then the notice is all there is to say; null when there is nothing to say.
+ * - `totals`: `[{ key, before, after, delta }]` as the page writes them, `key` being `tokens` (what loads every session) or `files`; a source of notes (`notes`) counts
+ *   its notes only. Both are there whenever there is a comparison, a reader checks them; `delta` is empty where the total did not change.
+ * - `lists`: `[{ key, rows }]` of `CHANGE_LISTS`, those that have rows, the rows as the server ordered them; a row that names nothing is left out.
+ */
+export function changesView(changes, period, { notes = false } = {}) {
+  const history = enumName(changes?.history);
+  const kind = CHANGE_NOTICES.get(history);
+  const notice = kind === undefined ? null : { kind, reason: kind === 'failed' && typeof changes.error === 'string' ? changes.error.trim() : '' };
+
+  const week = period === 'week';
+  const chosen = week ? changes?.previousWeek : changes?.previousDay;
+  if (chosen === null || typeof chosen !== 'object' || Array.isArray(chosen)) {
+    let sentence = null;
+    if (week) {
+      if (changeDay(changes?.firstDay) !== null) sentence = { kind: 'noWeek', day: changes.firstDay };
+    } else if (history === 'Kept') {
+      sentence = { kind: 'noDay' };
+    }
+    return { notice, when: null, sentence, totals: [], lists: [] };
+  }
+
+  const count = (value) => (Number.isFinite(value) ? value : 0);
+  const when = changeMoment(chosen.takenAt) !== null ? chosen.takenAt : changeDay(chosen.day) !== null ? chosen.day : null;
+  const lists = CHANGE_LISTS.map((key) => ({ key, rows: changeRows(chosen, key) })).filter((list) => list.rows.length > 0);
+  const files = [count(chosen.filesBefore), count(chosen.filesAfter)];
+  const every = [count(chosen.everySessionTokensBefore), count(chosen.everySessionTokensAfter)];
+  const totals = [
+    ...(notes ? [] : [{ key: 'tokens', before: formatTokens(every[0]), after: formatTokens(every[1]), delta: formatDelta(every[1] - every[0], { tokens: true }) }]),
+    { key: 'files', before: String(files[0]), after: String(files[1]), delta: formatDelta(files[1] - files[0]) },
+  ];
+  const moved = lists.length > 0 || files[0] !== files[1] || (!notes && every[0] !== every[1]);
+  return { notice, when, sentence: moved ? null : { kind: 'none' }, totals, lists };
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -267,6 +267,32 @@ Accept: application/json
 GET {{baseUrl}}/api/sources/{{source}}/overview
 Accept: application/json
 
+### What changed: the source as it is now against its daily summaries of an earlier day and of a week ago
+# The first time this is asked for a source on a day (the overview page asks every time it is shown), pusula keeps a summary of the source:
+# for every indexed file its estimated tokens in all and in every session, and the broken links (file, kind and text, not the line). The day
+# is the local calendar day of the machine the server runs on, and the summary of a day is never replaced later that day. The summaries
+# are kept in pusula's own state folder, never in a folder that is shown: $XDG_STATE_HOME/pusula/history (when it is an absolute path) or
+# ~/.local/state/pusula/history on Linux and macOS, %LOCALAPPDATA%\pusula\history on Windows, one JSON file for each source. Every summary
+# of the last seven days is kept, and of the older ones only the newest.
+#   "history"       Kept (today's summary is kept) | Off (no state folder, because the home directory is not known: nothing is written) |
+#                   InsideSource (the state folder is inside a folder that is shown, and pusula never writes there; older summaries are still
+#                   compared) | WriteFailed ("error" says why; older summaries are still compared and the next request tries again)
+#   "firstDay"      the day of the oldest summary (today's included once it is kept); left out when there is none
+#   "previousDay"   the source as it is now against the newest summary of an earlier day (a day pusula was not opened is skipped); left out when there is none
+#   "previousWeek"  the same against the newest summary that is seven days old or older; left out when there is none
+# Today's own summary is never compared with. Each comparison has the "day" and "takenAt" of the summary, "filesBefore" and "filesAfter",
+# "everySessionTokensBefore" and "everySessionTokensAfter", and these lists (none of them is capped):
+#   "added"           files that are in the source now and not in the summary: { "path", "tokens", "everySessionTokens", "loadMode" }, the current values
+#   "removed"         files that are in the summary and not in the source now: { "path", "tokens", "everySessionTokens" }, the values of the summary, no loadMode
+#   "resized"         files in both whose tokens or everySessionTokens differ: { "path", "loadMode", "tokensBefore", "tokensAfter",
+#                     "everySessionTokensBefore", "everySessionTokensAfter" }; a file whose text changed but whose counts did not is not listed
+#   "newlyBroken"     links that are broken now and were not in the summary: { "source", "kind", "raw", "line" }, the line of the first occurrence now
+#   "noLongerBroken"  links that were broken in the summary and are not broken now (fixed, removed, or their file is gone): { "source", "kind", "raw" }
+# A broken link is told apart by its file, its kind and its text, not by its line. For a vault or a plain Markdown folder the tokens in
+# every session are all 0.
+GET {{baseUrl}}/api/sources/{{source}}/changes
+Accept: application/json
+
 ### Live events (server-sent events): "ready" first, then one "changed" event per new index version of this source. The request stays open.
 GET {{baseUrl}}/api/sources/{{source}}/events
 Accept: text/event-stream

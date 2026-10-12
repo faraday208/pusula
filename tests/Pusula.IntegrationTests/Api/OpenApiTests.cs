@@ -33,7 +33,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         paths.PropertyNames().ShouldBe(
         [
             "/api/sources", "/api/sources/{id}", "/api/sources/{source}/tree", "/api/sources/{source}/file", "/api/sources/{source}/overview",
-            "/api/sources/{source}/events", "/api/browse", "/api/browse/found",
+            "/api/sources/{source}/changes", "/api/sources/{source}/events", "/api/browse", "/api/browse/found",
         ], ignoreOrder: true);
         paths.GetProperty("/api/sources").PropertyNames().ShouldBe(["get", "post"], ignoreOrder: true);
         paths.GetProperty("/api/sources/{id}").PropertyNames().ShouldBe(["delete"]);
@@ -192,6 +192,86 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         foreach (string text in new[] { "'entry'", "'recent'", "'mostLinked'", "modifiedAt", "orphan", "no links at all" })
         {
             description.ShouldContain(text);
+        }
+    }
+
+    [Fact]
+    public async Task GetOpenApiDocument_Changes_DocumentsTheOperationTheStatesAndWhatEachListIs()
+    {
+        using JsonDocument json = await fixture.Client.GetJsonAsync("/openapi/v1.json");
+        JsonElement path = json.RootElement.GetProperty("paths").GetProperty("/api/sources/{source}/changes");
+        JsonElement get = path.GetProperty("get");
+
+        path.PropertyNames().ShouldBe(["get"]);
+        get.GetProperty("operationId").GetString().ShouldBe("GetChanges");
+        get.GetProperty("tags").EnumerateArray().Select(tag => tag.GetString()).ShouldBe(["Overview"]);
+        get.GetProperty("parameters").EnumerateArray().Select(parameter => $"{parameter.GetProperty("name").GetString()}:{parameter.GetProperty("in").GetString()}")
+            .ShouldBe(["source:path"]);
+        get.GetProperty("responses").PropertyNames().ShouldBe(["200", "404", "503"], ignoreOrder: true);
+        get.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetRawText().ShouldContain("ChangesResponse");
+        foreach (string status in new[] { "404", "503" })
+        {
+            get.GetProperty("responses").GetProperty(status).GetProperty("content").TryGetProperty("application/problem+json", out _).ShouldBeTrue(status);
+        }
+
+        // What is kept, where, when and for how long, what the states say, and what each list is, is told in the description.
+        string description = get.GetProperty("description").GetString()!;
+        foreach (string text in new[]
+        {
+            "daily summary", "the first time", "local calendar day", "never replaced later that day", "state folder", "never in a folder that is shown",
+            "$XDG_STATE_HOME/pusula/history", "~/.local/state/pusula/history", "%LOCALAPPDATA%", "one JSON file for each source", "last seven days",
+            "only the newest", "'previousDay'", "'previousWeek'", "'firstDay'", "seven days old or older", "today's own summary is never compared with",
+            "'history'", "Kept", "Off", "InsideSource", "WriteFailed", "'error'", "'added'", "'removed'", "'resized'", "'newlyBroken'", "'noLongerBroken'",
+            "not by its line", "none of them capped", "no loadMode", "token counts did not", "the tokens in every session are all 0",
+        })
+        {
+            description.ShouldContain(text);
+        }
+    }
+
+    [Fact]
+    public async Task GetOpenApiDocument_ChangesSchemas_AreDocumentedAndOnlyRequireWhatIsAlwaysThere()
+    {
+        using JsonDocument json = await fixture.Client.GetJsonAsync("/openapi/v1.json");
+        JsonElement schemas = json.RootElement.GetProperty("components").GetProperty("schemas");
+
+        string[] Required(string name) => [.. schemas.GetProperty(name).GetProperty("required").EnumerateArray().Select(property => property.GetString()!)];
+
+        schemas.GetProperty("ChangesResponse").GetProperty("properties").PropertyNames().ShouldBe(["history", "firstDay", "previousDay", "previousWeek", "error"], ignoreOrder: true);
+        Required("ChangesResponse").ShouldBe(["history"]);
+        schemas.GetProperty("ChangesResponse").GetProperty("properties").GetProperty("history").GetRawText().ShouldContain("HistoryState");
+        schemas.GetProperty("ChangesResponse").GetProperty("properties").GetProperty("previousDay").GetRawText().ShouldContain("ChangesSince");
+        schemas.GetProperty("ChangesResponse").GetProperty("properties").GetProperty("previousWeek").GetRawText().ShouldContain("ChangesSince");
+        schemas.GetProperty("ChangesResponse").GetProperty("properties").GetProperty("firstDay").GetProperty("format").GetString().ShouldBe("date");
+
+        string[] since =
+        [
+            "day", "takenAt", "filesBefore", "filesAfter", "everySessionTokensBefore", "everySessionTokensAfter", "added", "removed", "resized", "newlyBroken", "noLongerBroken",
+        ];
+        schemas.GetProperty("ChangesSince").GetProperty("properties").PropertyNames().ShouldBe(since, ignoreOrder: true);
+        Required("ChangesSince").ShouldBe(since, ignoreOrder: true);
+        schemas.GetProperty("ChangesSince").GetProperty("properties").GetProperty("day").GetProperty("format").GetString().ShouldBe("date");
+        schemas.GetProperty("ChangesSince").GetProperty("properties").GetProperty("takenAt").GetProperty("format").GetString().ShouldBe("date-time");
+
+        schemas.GetProperty("ChangedFile").GetProperty("properties").PropertyNames().ShouldBe(["path", "tokens", "everySessionTokens", "loadMode"], ignoreOrder: true);
+        Required("ChangedFile").ShouldBe(["path", "tokens", "everySessionTokens"], ignoreOrder: true);
+        schemas.GetProperty("ResizedFile").GetProperty("properties").PropertyNames().ShouldBe(
+            ["path", "loadMode", "tokensBefore", "tokensAfter", "everySessionTokensBefore", "everySessionTokensAfter"], ignoreOrder: true);
+        Required("ResizedFile").ShouldBe(["path", "loadMode", "tokensBefore", "tokensAfter", "everySessionTokensBefore", "everySessionTokensAfter"], ignoreOrder: true);
+        schemas.GetProperty("ChangedLink").GetProperty("properties").PropertyNames().ShouldBe(["source", "kind", "raw", "line"], ignoreOrder: true);
+        Required("ChangedLink").ShouldBe(["source", "kind", "raw"], ignoreOrder: true);
+
+        foreach (string name in new[] { "ChangesResponse", "ChangesSince", "ChangedFile", "ResizedFile", "ChangedLink", "HistoryState" })
+        {
+            schemas.GetProperty(name).GetProperty("description").GetString().ShouldNotBeNullOrWhiteSpace(name);
+            if (schemas.GetProperty(name).TryGetProperty("properties", out JsonElement properties))
+            {
+                foreach (JsonProperty property in properties.EnumerateObject())
+                {
+                    // The description of a property that is an enum or another record sits next to the reference to it.
+                    property.Value.GetRawText().ShouldContain("\"description\"", Case.Sensitive, $"{name}.{property.Name}");
+                }
+            }
         }
     }
 
@@ -358,6 +438,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Values("SourceProfile").ShouldBe(["Claude", "Vault", "Markdown"]);
         Values("FolderKind").ShouldBe(["Vault", "Claude", "Notes"]);
         Values("LinkStatus").ShouldBe(["Resolved", "NonMarkdown", "Broken", "Pending", "External"]);
+        Values("HistoryState").ShouldBe(["Kept", "Off", "InsideSource", "WriteFailed"]);
     }
 
     [Fact]

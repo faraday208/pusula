@@ -2028,6 +2028,7 @@ describe('parseUiState and uiStateJson (what stays open across a reload)', () =>
     layersRestOpen: true,
     legendOpen: true,
     propertiesOpen: false,
+    changesSince: 'week',
   };
 
   it('what is written is read back', () => {
@@ -2036,6 +2037,27 @@ describe('parseUiState and uiStateJson (what stays open across a reload)', () =>
     assert.deepEqual([...back.moreOpen], ['issues:pending', 'band:Skill']);
     assert.deepEqual([...back.openBand], ['group:Skill']);
     assert.deepEqual([back.memoryOpen, back.layersRestOpen, back.legendOpen, back.propertiesOpen], [true, true, true, false]);
+    assert.equal(back.changesSince, 'week');
+  });
+
+  it('what "What changed" compares with is written and read back, for both choices', () => {
+    for (const choice of core.CHANGE_PERIODS) {
+      assert.equal(JSON.parse(core.uiStateJson({ ...full, changesSince: choice })).changesSince, choice);
+      assert.equal(core.parseUiState(core.uiStateJson({ ...full, changesSince: choice })).changesSince, choice);
+    }
+  });
+
+  it('anything but "day" or "week" is the day: the choice the page starts with', () => {
+    for (const value of ['month', 'Week', 'DAY', '', 7, null, true, {}, ['week'], undefined]) {
+      assert.equal(core.parseUiState(JSON.stringify({ changesSince: value })).changesSince, 'day', String(value));
+    }
+    assert.equal(core.parseUiState(JSON.stringify({ changesSince: 'day' })).changesSince, 'day');
+    assert.equal(core.parseUiState(JSON.stringify({ changesSince: 'week' })).changesSince, 'week');
+  });
+
+  it('a state written before the choice existed starts on the day', () => {
+    const old = '{"issueOpen":[],"moreOpen":[],"openBand":[],"memoryOpen":false,"layersRestOpen":false,"legendOpen":false,"propertiesOpen":true}';
+    assert.equal(core.parseUiState(old).changesSince, 'day');
   });
 
   it('nothing, junk or the wrong shape is the page the way it starts: folded, the properties open', () => {
@@ -2045,6 +2067,7 @@ describe('parseUiState and uiStateJson (what stays open across a reload)', () =>
       assert.equal(ui.moreOpen.size, 0);
       assert.equal(ui.openBand.size, 0);
       assert.deepEqual([ui.memoryOpen, ui.layersRestOpen, ui.legendOpen, ui.propertiesOpen], [false, false, false, true]);
+      assert.equal(ui.changesSince, 'day');
     }
   });
 
@@ -2057,11 +2080,13 @@ describe('parseUiState and uiStateJson (what stays open across a reload)', () =>
       layersRestOpen: 'true',
       legendOpen: true,
       propertiesOpen: null,
+      changesSince: 'last month',
     }));
     assert.deepEqual([...ui.issueOpen], [['broken', true]]);
     assert.deepEqual([...ui.moreOpen], ['a', 'b']);
     assert.equal(ui.openBand.size, 0);
     assert.deepEqual([ui.memoryOpen, ui.layersRestOpen, ui.legendOpen, ui.propertiesOpen], [false, false, true, true]);
+    assert.equal(ui.changesSince, 'day');
   });
 });
 
@@ -3975,5 +4000,444 @@ describe('parseBrowseState and browseStateJson (what the picker remembers for th
     assert.deepEqual(core.parseBrowseState('{"path":"/x","hidden":true}'), { path: '/x', hidden: true });
     assert.deepEqual(core.parseBrowseState('{"path":"/x","hidden":"true"}'), { path: '/x', hidden: false });
     assert.equal(core.browseStateJson({ path: '', hidden: 1 }), '{"path":null,"hidden":false}');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// #7: what changed since an earlier day
+// ---------------------------------------------------------------------------------------------
+
+describe('changesPeriod and changesData (what the section compares with, and what it is given)', () => {
+  it('the two choices are the day before, which the page starts with, and a week back', () => {
+    assert.deepEqual(core.CHANGE_PERIODS, ['day', 'week']);
+    assert.equal(core.changesPeriod('day'), 'day');
+    assert.equal(core.changesPeriod('week'), 'week');
+  });
+
+  it('anything else is the day', () => {
+    for (const value of ['month', 'Week', '', 7, null, undefined, {}, ['week']]) assert.equal(core.changesPeriod(value), 'day', String(value));
+  });
+
+  it('an answer is an object that says whether today\'s summary is kept', () => {
+    const answer = { history: 'Kept' };
+    assert.equal(core.changesData(answer), answer);
+    assert.equal(core.changesData({ history: 'WriteFailed', error: 'x' }).history, 'WriteFailed');
+  });
+
+  it('nothing, a list, text or an object that does not say is no answer: the section is left out', () => {
+    for (const value of [null, undefined, [], ['Kept'], 'Kept', 7, {}, { history: 3 }, { history: null }, { hello: 'world' }]) {
+      assert.equal(core.changesData(value), null, JSON.stringify(value));
+    }
+  });
+});
+
+describe('changeWhen (the day and the time a comparison was taken, in the words of a reader)', () => {
+  const NOW = new Date(2026, 9, 12, 8, 0); // 12 October 2026
+  const taken = new Date(2026, 9, 11, 9, 14, 3).toISOString(); // 11 October 2026, 09:14 here, whatever "here" is
+
+  it('Turkish: the day, the month and the weekday, then the time', () => {
+    assert.equal(core.changeWhen(taken, 'tr', NOW), '11 Ekim Pazar, 09:14');
+  });
+
+  it('English: the weekday, the day and the month, then the time (a comma after the weekday depends on the ICU version)', () => {
+    assert.match(core.changeWhen(taken, 'en', NOW), /^Sunday,? 11 October, 09:14$/);
+  });
+
+  it('any language but Turkish is read in English', () => {
+    assert.equal(core.changeWhen(taken, 'de', NOW), core.changeWhen(taken, 'en', NOW));
+    assert.equal(core.changeWhen(taken, undefined, NOW), core.changeWhen(taken, 'en', NOW));
+  });
+
+  it('a day with no time is the day alone', () => {
+    assert.equal(core.changeWhen('2026-10-05', 'tr', NOW), '5 Ekim Pazartesi');
+    assert.match(core.changeWhen('2026-10-05', 'en', NOW), /^Monday,? 5 October$/);
+  });
+
+  it('the year is written when it is not the one the reader is in', () => {
+    assert.equal(core.changeWhen(new Date(2025, 11, 20, 9, 14).toISOString(), 'tr', NOW), '20 Aralık 2025 Cumartesi, 09:14');
+    assert.match(core.changeWhen('2025-12-20', 'en', NOW), /^Saturday,? 20 December 2025$/);
+    assert.ok(!/2026/.test(core.changeWhen(taken, 'tr', NOW)), 'not in the year of now');
+    assert.ok(/2026/.test(core.changeWhen(taken, 'tr', new Date(2027, 0, 3))), 'but in the year after');
+  });
+
+  it('it asks the clock for "now" when it is not told', () => {
+    assert.ok(core.changeWhen(taken, 'tr').endsWith(', 09:14'));
+  });
+
+  it('what is no day and no moment is empty: an invalid date, a day that does not exist, a number that Date.parse would take for a date', () => {
+    for (const value of ['', 'soon', '5', '2026-02-31', '2026-13-01', '2026-10-11T', '11/10/2026', null, undefined, 20261011, {}, [], true]) {
+      assert.equal(core.changeWhen(value, 'tr', NOW), '', JSON.stringify(value));
+    }
+  });
+
+  it('a day is the day it says in every time zone; a moment is shown in the zone the reader is in', () => {
+    const before = process.env.TZ;
+    try {
+      for (const zone of ['America/Los_Angeles', 'Pacific/Auckland', 'UTC', 'Asia/Kolkata']) {
+        process.env.TZ = zone;
+        assert.equal(core.changeWhen('2026-10-05', 'tr', NOW), '5 Ekim Pazartesi', zone);
+      }
+      process.env.TZ = 'Europe/Istanbul';
+      assert.equal(core.changeWhen('2026-10-11T06:14:03+00:00', 'tr', NOW), '11 Ekim Pazar, 09:14');
+      process.env.TZ = 'America/Los_Angeles';
+      assert.equal(core.changeWhen('2026-10-11T06:14:03+00:00', 'tr', NOW), '10 Ekim Cumartesi, 23:14');
+    } finally {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    }
+  });
+});
+
+describe('changeDeltas (what a row of a list says of the size of its file)', () => {
+  const MINUS = '−';
+
+  it('an added file: its tokens as a gain, and the part of it that loads every session', () => {
+    assert.deepEqual(core.changeDeltas('added', { path: 'skills/a/SKILL.md', tokens: 1200, everySessionTokens: 40, loadMode: 'DescriptionEverySession' }), { tokens: '+1.2K', everySession: { delta: '+40' } });
+  });
+
+  it('a file that loads whole every session says it in words alone: its two differences are the same', () => {
+    assert.deepEqual(core.changeDeltas('added', { path: 'rules/new.md', tokens: 1200, everySessionTokens: 1200 }), { tokens: '+1.2K', everySession: { delta: null } });
+  });
+
+  it('a file that loads nothing every session has no such part', () => {
+    assert.deepEqual(core.changeDeltas('added', { path: 'notes.md', tokens: 700, everySessionTokens: 0 }), { tokens: '+700', everySession: null });
+    assert.deepEqual(core.changeDeltas('added', { path: 'notes.md', tokens: 700 }), { tokens: '+700', everySession: null });
+  });
+
+  it('a removed file: its tokens as a loss, with the minus sign and not a hyphen', () => {
+    const gone = core.changeDeltas('removed', { path: 'skills/a/SKILL.md', tokens: 2100, everySessionTokens: 60 });
+    assert.deepEqual(gone, { tokens: `${MINUS}2.1K`, everySession: { delta: `${MINUS}60` } });
+    assert.ok(!gone.tokens.includes('-') && !gone.everySession.delta.includes('-'), 'U+2212, never U+002D');
+    assert.deepEqual(core.changeDeltas('removed', { path: 'rules/old.md', tokens: 300, everySessionTokens: 300 }), { tokens: `${MINUS}300`, everySession: { delta: null } });
+    assert.deepEqual(core.changeDeltas('removed', { path: 'x.md', tokens: 300, everySessionTokens: 0 }), { tokens: `${MINUS}300`, everySession: null });
+  });
+
+  it('a file that grew or shrank: the difference of its tokens before and after', () => {
+    assert.deepEqual(core.changeDeltas('resized', { tokensBefore: 3300, tokensAfter: 3100, everySessionTokensBefore: 60, everySessionTokensAfter: 55 }), { tokens: `${MINUS}200`, everySession: { delta: `${MINUS}5` } });
+    assert.deepEqual(core.changeDeltas('resized', { tokensBefore: 3400, tokensAfter: 3495, everySessionTokensBefore: 3400, everySessionTokensAfter: 3495 }), { tokens: '+95', everySession: { delta: null } });
+  });
+
+  it('equal differences say "every session" alone; different ones say how much of it', () => {
+    assert.equal(core.changeDeltas('resized', { tokensBefore: 100, tokensAfter: 160, everySessionTokensBefore: 100, everySessionTokensAfter: 160 }).everySession.delta, null);
+    assert.equal(core.changeDeltas('resized', { tokensBefore: 100, tokensAfter: 160, everySessionTokensBefore: 10, everySessionTokensAfter: 20 }).everySession.delta, '+10');
+    assert.equal(core.changeDeltas('resized', { tokensBefore: 160, tokensAfter: 100, everySessionTokensBefore: 160, everySessionTokensAfter: 100 }).everySession.delta, null, 'a loss as well');
+    assert.equal(core.changeDeltas('resized', { tokensBefore: 160, tokensAfter: 100, everySessionTokensBefore: 40, everySessionTokensAfter: 30 }).everySession.delta, `${MINUS}10`);
+  });
+
+  it('the part that loads every session does not change: it is not mentioned', () => {
+    assert.deepEqual(core.changeDeltas('resized', { tokensBefore: 900, tokensAfter: 950, everySessionTokensBefore: 0, everySessionTokensAfter: 0 }), { tokens: '+50', everySession: null });
+  });
+
+  it('a file whose tokens did not change but whose every-session part did (it began to load every session) has no tokens to write', () => {
+    assert.deepEqual(core.changeDeltas('resized', { tokensBefore: 900, tokensAfter: 900, everySessionTokensBefore: 0, everySessionTokensAfter: 900 }), { tokens: '', everySession: { delta: '+900' } });
+    assert.deepEqual(core.changeDeltas('resized', { tokensBefore: 900, tokensAfter: 900, everySessionTokensBefore: 900, everySessionTokensAfter: 0 }), { tokens: '', everySession: { delta: `${MINUS}900` } });
+  });
+
+  it('what is missing or is no number is nothing; no entry is not an error', () => {
+    assert.deepEqual(core.changeDeltas('added', {}), { tokens: '', everySession: null });
+    assert.deepEqual(core.changeDeltas('removed', { tokens: 'many', everySessionTokens: NaN }), { tokens: '', everySession: null });
+    assert.deepEqual(core.changeDeltas('resized', { tokensBefore: 5 }), { tokens: `${MINUS}5`, everySession: null });
+    for (const key of ['added', 'removed', 'resized']) assert.deepEqual(core.changeDeltas(key, null), { tokens: '', everySession: null }, key);
+  });
+});
+
+describe('changeDirection (which way a note that changed its size went, said in a word where no tokens are shown)', () => {
+  it('more tokens after than before grew, fewer shrank', () => {
+    assert.equal(core.changeDirection({ path: 'a.md', tokensBefore: 100, tokensAfter: 160 }), 'grew');
+    assert.equal(core.changeDirection({ path: 'a.md', tokensBefore: 160, tokensAfter: 100 }), 'shrank');
+  });
+
+  it('the same size, or nothing to tell by, is no direction', () => {
+    assert.equal(core.changeDirection({ tokensBefore: 100, tokensAfter: 100 }), null);
+    assert.equal(core.changeDirection({}), null);
+    assert.equal(core.changeDirection(null), null);
+    assert.equal(core.changeDirection({ tokensBefore: 'many', tokensAfter: NaN }), null);
+  });
+
+  it('a value that is missing counts as none: a note that had no tokens and has some grew', () => {
+    assert.equal(core.changeDirection({ tokensAfter: 40 }), 'grew');
+    assert.equal(core.changeDirection({ tokensBefore: 40 }), 'shrank');
+  });
+});
+
+describe('changesView (what the section says for one comparison of an answer of .../changes)', () => {
+  const MINUS = '−';
+  const claudeSince = (extra = {}) => ({
+    day: '2026-10-11',
+    takenAt: '2026-10-11T06:14:03+00:00',
+    filesBefore: 318,
+    filesAfter: 319,
+    everySessionTokensBefore: 12000,
+    everySessionTokensAfter: 12365,
+    added: [{ path: 'rules/new.md', tokens: 1200, everySessionTokens: 1200, loadMode: 'EverySession' }],
+    removed: [{ path: 'rules/old.md', tokens: 300, everySessionTokens: 300 }],
+    resized: [{ path: 'CLAUDE.md', loadMode: 'EverySession', tokensBefore: 3400, tokensAfter: 3495, everySessionTokensBefore: 3400, everySessionTokensAfter: 3495 }],
+    newlyBroken: [{ source: 'guides/setup.md', kind: 'ClaudePath', raw: '~/.claude/X.md', line: 78 }],
+    noLongerBroken: [{ source: 'rules/a.md', kind: 'MarkdownLink', raw: '../gone.md' }],
+    ...extra,
+  });
+  const unchanged = { filesAfter: 318, everySessionTokensAfter: 12000, added: [], removed: [], resized: [], newlyBroken: [], noLongerBroken: [] };
+  const answer = (extra = {}) => ({ history: 'Kept', firstDay: '2026-10-05', previousDay: claudeSince(), previousWeek: claudeSince({ day: '2026-10-05', takenAt: '2026-10-05T06:00:00+00:00', filesBefore: 300 }), ...extra });
+
+  describe('which comparison', () => {
+    it('the day is the one before today, the week the one a week back', () => {
+      const changes = answer();
+      assert.equal(core.changesView(changes, 'day').when, '2026-10-11T06:14:03+00:00');
+      assert.equal(core.changesView(changes, 'week').when, '2026-10-05T06:00:00+00:00');
+      assert.deepEqual(core.changesView(changes, 'day').totals.map((total) => total.before), ['~12K', '318']);
+      assert.deepEqual(core.changesView(changes, 'week').totals.map((total) => total.before), ['~12K', '300']);
+    });
+
+    it('both comparisons of an answer are the whole of it: the other period\'s lists are not mixed in', () => {
+      const changes = answer({ previousWeek: claudeSince({ added: [{ path: 'only-in-the-week.md', tokens: 5, everySessionTokens: 0, loadMode: 'OnDemand' }], removed: [], resized: [], newlyBroken: [], noLongerBroken: [] }) });
+      assert.deepEqual(core.changesView(changes, 'day').lists.find((list) => list.key === 'added').rows.map((row) => row.path), ['rules/new.md']);
+      assert.deepEqual(core.changesView(changes, 'week').lists.map((list) => list.key), ['added']);
+      assert.deepEqual(core.changesView(changes, 'week').lists[0].rows.map((row) => row.path), ['only-in-the-week.md']);
+    });
+  });
+
+  describe('a comparison that is not there', () => {
+    it('no earlier day: the sentence that says pusula started today', () => {
+      const view = core.changesView({ history: 'Kept', firstDay: '2026-10-12' }, 'day');
+      assert.deepEqual(view, { notice: null, when: null, sentence: { kind: 'noDay' }, totals: [], lists: [] });
+    });
+
+    it('no week: the sentence names the first day pusula has a summary of', () => {
+      const view = core.changesView({ history: 'Kept', firstDay: '2026-10-09', previousDay: claudeSince() }, 'week');
+      assert.deepEqual(view, { notice: null, when: null, sentence: { kind: 'noWeek', day: '2026-10-09' }, totals: [], lists: [] });
+    });
+
+    it('a day that is there does not make the week be there', () => {
+      const changes = { history: 'Kept', firstDay: '2026-10-09', previousDay: claudeSince() };
+      assert.ok(core.changesView(changes, 'day').totals.length > 0);
+      assert.equal(core.changesView(changes, 'week').totals.length, 0);
+    });
+
+    it('no week and no first day (nothing to name): no sentence', () => {
+      for (const firstDay of [undefined, null, '', 'soon', '2026-02-31', 20261009]) {
+        assert.equal(core.changesView({ history: 'Kept', firstDay }, 'week').sentence, null, String(firstDay));
+      }
+    });
+
+    it('a null comparison is none', () => {
+      assert.equal(core.changesView({ history: 'Kept', previousDay: null }, 'day').sentence.kind, 'noDay');
+    });
+
+    it('"pusula started keeping a summary today" is not said when today\'s was not kept: the notice is what there is to say', () => {
+      for (const history of ['Off', 'InsideSource', 'WriteFailed']) {
+        const view = core.changesView({ history }, 'day');
+        assert.equal(view.sentence, null, history);
+        assert.notEqual(view.notice, null, history);
+      }
+    });
+
+    it('the first day of a week that cannot be compared is still said when today\'s summary was not kept: it is true', () => {
+      assert.deepEqual(core.changesView({ history: 'Off', firstDay: '2026-10-09' }, 'week').sentence, { kind: 'noWeek', day: '2026-10-09' });
+    });
+  });
+
+  describe('what is the matter with today\'s summary', () => {
+    it('kept: nothing', () => {
+      assert.equal(core.changesView(answer(), 'day').notice, null);
+      assert.equal(core.changesView(answer({ history: 'kept' }), 'day').notice, null, 'the case of the first letter is not a difference');
+    });
+
+    it('off, inside a folder that is shown, a write that failed: each its own notice', () => {
+      assert.deepEqual(core.changesView(answer({ history: 'Off' }), 'day').notice, { kind: 'off', reason: '' });
+      assert.deepEqual(core.changesView(answer({ history: 'InsideSource' }), 'day').notice, { kind: 'inside', reason: '' });
+      assert.deepEqual(core.changesView(answer({ history: 'WriteFailed', error: 'Disk full' }), 'day').notice, { kind: 'failed', reason: 'Disk full' });
+      assert.deepEqual(core.changesView(answer({ history: 'writeFailed', error: 'Disk full' }), 'day').notice, { kind: 'failed', reason: 'Disk full' });
+    });
+
+    it('the reason is the server\'s words, trimmed, and only for a write that failed', () => {
+      assert.equal(core.changesView(answer({ history: 'WriteFailed', error: '  Access denied\n' }), 'day').notice.reason, 'Access denied');
+      assert.equal(core.changesView(answer({ history: 'WriteFailed' }), 'day').notice.reason, '');
+      assert.equal(core.changesView(answer({ history: 'WriteFailed', error: 7 }), 'day').notice.reason, '');
+      assert.equal(core.changesView(answer({ history: 'Off', error: 'ignored' }), 'day').notice.reason, '');
+    });
+
+    it('the comparisons that are there are still shown beside it', () => {
+      for (const history of ['Off', 'InsideSource', 'WriteFailed']) {
+        const view = core.changesView(answer({ history, error: 'x' }), 'day');
+        assert.notEqual(view.notice, null, history);
+        assert.equal(view.totals.length, 2, history);
+        assert.equal(view.lists.length, 5, history);
+      }
+    });
+
+    it('a history the page does not know has no notice: it can say nothing of it', () => {
+      for (const history of ['Pending', '', undefined, null, 3, '__proto__', 'constructor', 'toString']) assert.equal(core.changesView(answer({ history }), 'day').notice, null, String(history));
+    });
+  });
+
+  describe('nothing changed', () => {
+    it('all lists empty and both totals the same: one sentence instead of the lists, and the two totals are still there, for a reader checks them', () => {
+      const view = core.changesView({ history: 'Kept', previousDay: claudeSince(unchanged) }, 'day');
+      assert.deepEqual(view, {
+        notice: null,
+        when: '2026-10-11T06:14:03+00:00',
+        sentence: { kind: 'none' },
+        totals: [
+          { key: 'tokens', before: '~12K', after: '~12K', delta: '' },
+          { key: 'files', before: '318', after: '318', delta: '' },
+        ],
+        lists: [],
+      });
+    });
+
+    it('it is said of the week as well, and the notice of the history comes with it', () => {
+      const view = core.changesView({ history: 'Off', previousWeek: claudeSince(unchanged) }, 'week');
+      assert.deepEqual(view.sentence, { kind: 'none' });
+      assert.equal(view.notice.kind, 'off');
+    });
+
+    it('a total that differs is a change even when no list has a row: the totals are shown and no sentence says that nothing changed', () => {
+      const files = core.changesView({ history: 'Kept', previousDay: claudeSince({ ...unchanged, filesAfter: 319 }) }, 'day');
+      assert.equal(files.sentence, null);
+      assert.deepEqual(files.totals.map((total) => [total.key, total.delta]), [['tokens', ''], ['files', '+1']]);
+      const tokens = core.changesView({ history: 'Kept', previousDay: claudeSince({ ...unchanged, everySessionTokensAfter: 11900 }) }, 'day');
+      assert.equal(tokens.sentence, null);
+      assert.deepEqual(tokens.totals.map((total) => [total.key, total.delta]), [['tokens', `${MINUS}100`], ['files', '']]);
+    });
+
+    it('a list with a row is a change even when both totals are the same', () => {
+      const view = core.changesView({ history: 'Kept', previousDay: claudeSince({ ...unchanged, newlyBroken: [{ source: 'a.md', kind: 'WikiLink', raw: 'x', line: 1 }] }) }, 'day');
+      assert.equal(view.sentence, null);
+      assert.deepEqual(view.lists.map((list) => list.key), ['newlyBroken']);
+    });
+
+    it('rows that name nothing are not rows: with only those, nothing changed', () => {
+      const view = core.changesView({ history: 'Kept', previousDay: claudeSince({ ...unchanged, added: [{}, null, { path: '' }], newlyBroken: [{ source: 'a.md' }] }) }, 'day');
+      assert.deepEqual(view.sentence, { kind: 'none' });
+    });
+  });
+
+  describe('the totals', () => {
+    it('a Claude configuration: what loads every session as tokens, then the files; each before and after, and the difference', () => {
+      assert.deepEqual(core.changesView(answer(), 'day').totals, [
+        { key: 'tokens', before: '~12K', after: '~12.4K', delta: '+365' },
+        { key: 'files', before: '318', after: '319', delta: '+1' },
+      ]);
+    });
+
+    it('a difference that is a loss has the minus sign; one that is none is empty, and the two totals are there all the same', () => {
+      const view = core.changesView(answer({ previousDay: claudeSince({ filesAfter: 316, everySessionTokensAfter: 12000 }) }), 'day');
+      assert.deepEqual(view.totals, [
+        { key: 'tokens', before: '~12K', after: '~12K', delta: '' },
+        { key: 'files', before: '318', after: '316', delta: `${MINUS}2` },
+      ]);
+    });
+
+    it('a source of notes counts its notes only, and what loads every session is not a thing of notes', () => {
+      const view = core.changesView(answer({ previousDay: claudeSince({ filesBefore: 159, filesAfter: 161, everySessionTokensBefore: 0, everySessionTokensAfter: 0 }) }), 'day', { notes: true });
+      assert.deepEqual(view.totals, [{ key: 'files', before: '159', after: '161', delta: '+2' }]);
+    });
+
+    it('notes whose count is the same and that have no list rows have nothing changed, whatever the tokens say; their one total is still there', () => {
+      const view = core.changesView({ history: 'Kept', previousDay: claudeSince({ ...unchanged, everySessionTokensAfter: 99999 }) }, 'day', { notes: true });
+      assert.deepEqual(view.sentence, { kind: 'none' });
+      assert.deepEqual(view.totals, [{ key: 'files', before: '318', after: '318', delta: '' }]);
+    });
+
+    it('a number that is missing is none', () => {
+      const view = core.changesView({ history: 'Kept', previousDay: { day: '2026-10-11', takenAt: '2026-10-11T06:14:03+00:00', filesAfter: 4 } }, 'day');
+      assert.deepEqual(view.totals, [
+        { key: 'tokens', before: '0', after: '0', delta: '' },
+        { key: 'files', before: '0', after: '4', delta: '+4' },
+      ]);
+    });
+  });
+
+  describe('the lists', () => {
+    it('the five, in the order of the page, each with the rows the server sent in the order it sent them', () => {
+      const lists = core.changesView(answer(), 'day').lists;
+      assert.deepEqual(lists.map((list) => list.key), ['added', 'removed', 'resized', 'newlyBroken', 'noLongerBroken']);
+      assert.deepEqual(core.CHANGE_LISTS, ['added', 'removed', 'resized', 'newlyBroken', 'noLongerBroken']);
+      assert.equal(lists[0].rows[0].loadMode, 'EverySession');
+      assert.equal(lists[3].rows[0].line, 78);
+    });
+
+    it('the order of the rows is the server\'s, not sorted again', () => {
+      const added = [{ path: 'b.md', tokens: 5, everySessionTokens: 5 }, { path: 'a.md', tokens: 9, everySessionTokens: 0 }, { path: 'c.md', tokens: 1, everySessionTokens: 1 }];
+      assert.deepEqual(core.changesView(answer({ previousDay: claudeSince({ added }) }), 'day').lists[0].rows.map((row) => row.path), ['b.md', 'a.md', 'c.md']);
+    });
+
+    it('an empty list is left out', () => {
+      const view = core.changesView(answer({ previousDay: claudeSince({ added: [], removed: [], newlyBroken: [] }) }), 'day');
+      assert.deepEqual(view.lists.map((list) => list.key), ['resized', 'noLongerBroken']);
+    });
+
+    it('a list the server leaves out or sends as something else is an empty one', () => {
+      const bare = { day: '2026-10-11', takenAt: '2026-10-11T06:14:03+00:00', filesBefore: 3, filesAfter: 4, added: 'x', removed: null, resized: { path: 'a.md' } };
+      const view = core.changesView({ history: 'Kept', previousDay: bare }, 'day');
+      assert.deepEqual(view.lists, []);
+      assert.equal(view.totals.length, 2);
+    });
+
+    it('a row names a file by its path and a link by its file and its text; a row that names nothing is left out', () => {
+      const view = core.changesView(answer({
+        previousDay: claudeSince({
+          added: [{ path: 'a.md', tokens: 1, everySessionTokens: 0 }, { tokens: 1 }, null, 'a.md', { path: '' }, { path: 7 }],
+          newlyBroken: [{ source: 'a.md', raw: 'x', line: 1 }, { source: 'a.md' }, { raw: 'x' }, { source: '', raw: 'x' }],
+          noLongerBroken: [{ source: 'a.md', raw: '' }],
+        }),
+      }), 'day');
+      assert.deepEqual(view.lists.find((list) => list.key === 'added').rows.map((row) => row.path), ['a.md']);
+      assert.equal(view.lists.find((list) => list.key === 'newlyBroken').rows.length, 1);
+      assert.equal(view.lists.find((list) => list.key === 'noLongerBroken').rows.length, 1, 'a link whose text is empty is still a link that was written');
+    });
+
+    it('a source of notes has the same lists', () => {
+      const view = core.changesView(answer(), 'day', { notes: true });
+      assert.deepEqual(view.lists.map((list) => list.key), ['added', 'removed', 'resized', 'newlyBroken', 'noLongerBroken']);
+    });
+  });
+
+  describe('when it was taken', () => {
+    it('the moment of the summary, for the line that says what the section is compared with', () => {
+      assert.equal(core.changesView(answer(), 'day').when, '2026-10-11T06:14:03+00:00');
+    });
+
+    it('the day when the moment is no date; nothing when neither is', () => {
+      assert.equal(core.changesView(answer({ previousDay: claudeSince({ takenAt: 'yesterday' }) }), 'day').when, '2026-10-11');
+      assert.equal(core.changesView(answer({ previousDay: claudeSince({ takenAt: undefined }) }), 'day').when, '2026-10-11');
+      assert.equal(core.changesView(answer({ previousDay: claudeSince({ takenAt: 'x', day: 'y' }) }), 'day').when, null);
+    });
+
+    it('the label of what it returns is changeWhen\'s', () => {
+      const moment = new Date(2026, 9, 11, 9, 14, 3).toISOString();
+      const view = core.changesView(answer({ previousDay: claudeSince({ takenAt: moment }) }), 'day');
+      assert.equal(core.changeWhen(view.when, 'tr', new Date(2026, 9, 12)), '11 Ekim Pazar, 09:14');
+    });
+  });
+
+  describe('an answer that is not what it should be is no error', () => {
+    it('nothing, a list, a text, an empty object: the page can still ask for its words', () => {
+      for (const value of [null, undefined, [], 'Kept', 7, {}]) {
+        for (const period of ['day', 'week']) {
+          const view = core.changesView(value, period);
+          assert.deepEqual(Object.keys(view).sort(), ['lists', 'notice', 'sentence', 'totals', 'when'], `${JSON.stringify(value)} ${period}`);
+          assert.deepEqual([view.totals, view.lists], [[], []]);
+        }
+      }
+    });
+
+    it('a comparison of the wrong type is no comparison', () => {
+      for (const previousDay of ['yesterday', 7, [], true]) {
+        assert.equal(core.changesView({ history: 'Kept', previousDay }, 'day').sentence.kind, 'noDay', JSON.stringify(previousDay));
+      }
+    });
+
+    it('a comparison with nothing in it says that nothing changed', () => {
+      assert.deepEqual(core.changesView({ history: 'Kept', previousDay: {} }, 'day').sentence, { kind: 'none' });
+    });
+
+    it('it does not change what it is given', () => {
+      const changes = answer();
+      const copy = JSON.stringify(changes);
+      core.changesView(changes, 'day');
+      core.changesView(changes, 'week', { notes: true });
+      assert.equal(JSON.stringify(changes), copy);
+    });
   });
 });

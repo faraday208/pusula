@@ -28,8 +28,10 @@ from the section of `CHANGELOG.md` for that version.
 ## Layout
 
 - `src/Pusula`: one ASP.NET Core project (.NET 10, minimal APIs) in vertical slices. Dependencies point one way:
-  `Sources/ Browse/ Tree/ Files/ Overview/ LiveReload/ → Indexing/ → Links/`. `Security/` holds the host guard and
-  the security headers. There is no database: the file system is the source of truth, the index is an in-memory snapshot.
+  `Sources/ Browse/ Tree/ Files/ Overview/ History/ LiveReload/ → Indexing/ → Links/`. `History/` also reads the list of
+  sources (`ISourceRegistry`), so that it never writes into a folder that is shown. `Security/` holds the host guard and
+  the security headers. There is no database: the file system is the source of truth, the index is an in-memory snapshot,
+  and `History/` keeps one small summary of each source a day in pusula's state folder.
 - `src/Pusula/wwwroot`: the UI, plain HTML/CSS/JS as ES modules with no build step; `markdown-it` is vendored. It is
   built into the program with `appsettings.json` (`Startup/BuiltInContent.cs`): outside Development the page always
   comes from inside the program; Development (`dotnet run`) serves the files on disk.
@@ -40,7 +42,8 @@ from the section of `CHANGELOG.md` for that version.
 
 ## Rules
 
-- **Read-only.** Never write to a folder that is being shown. The only file pusula writes is its own `sources.json`.
+- **Read-only.** Never write to a folder that is being shown. pusula writes only files of its own: `sources.json`, and the
+  daily summaries of `History/` in its state folder (`~/.local/state/pusula/`, `%LOCALAPPDATA%\pusula\`).
 - **The UI talks to the server only through the JSON API.** The server never renders HTML; the UI never sees the file system.
 - **Only `.md` files are indexed and served.** `/api/sources/{id}/file` looks paths up in the index, never on disk.
 - **Changing sources and browsing folders** is allowed from the same machine only (loopback or the server's own

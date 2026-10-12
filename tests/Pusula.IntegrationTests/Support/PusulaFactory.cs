@@ -119,6 +119,14 @@ internal sealed class PusulaFactory : WebApplicationFactory<Program>
         {
             // No test searches the drives of the machine it runs on (/mnt, /media): a test that wants some gives its own.
             services.AddSingleton(DriveFolders.None);
+
+            // No test keeps a history in the state folder of whoever runs it (~/.local/state, %LOCALAPPDATA%): a test that wants one
+            // gives directories with a state directory of its own.
+            if (_directories is null)
+            {
+                services.AddSingleton(UserDirectories.FromEnvironment() with { State = string.Empty });
+            }
+
             _configureServices?.Invoke(services);
         });
 
