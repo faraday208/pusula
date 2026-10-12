@@ -25,11 +25,17 @@ public sealed class ChangesEndpointTests(ApiFixture fixture) : IClassFixture<Api
             node.GetProperty("type").GetString() == "Directory" ? Flatten(node.GetProperty("children")) : [node]),
     ];
 
-    // Every file and folder below a folder, with what a change to it would change: its name, its size and when it was written.
+    // Every file and folder below a folder, with what a change to it would change: its name, its size and when it was written. The size
+    // and the time are read from each entry itself (Refresh), not from the listing of its folder: on Windows NTFS updates the copy of
+    // them that a folder keeps of its entries later, so two listings of a folder that nothing was written to can differ.
     private static string[] Listing(string folder) =>
     [
         .. new DirectoryInfo(folder).EnumerateFileSystemInfos("*", SearchOption.AllDirectories)
-            .Select(info => $"{Path.GetRelativePath(folder, info.FullName)}|{(info is FileInfo file ? file.Length : -1)}|{info.LastWriteTimeUtc.Ticks}")
+            .Select(info =>
+            {
+                info.Refresh();
+                return $"{Path.GetRelativePath(folder, info.FullName)}|{(info is FileInfo file ? file.Length : -1)}|{info.LastWriteTimeUtc.Ticks}";
+            })
             .Order(StringComparer.Ordinal),
     ];
 
