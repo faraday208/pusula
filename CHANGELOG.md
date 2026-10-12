@@ -6,6 +6,18 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **What changed** on the overview: how the folder differs from yesterday and from a week ago. The tokens of every
+  session before and after, the files that were added, removed, grew or shrank, and the links that are newly broken or
+  no longer broken.
+
+### Changed
+
+- pusula writes files of its own besides `sources.json`: once a day, the first time the overview of a folder is opened,
+  a small summary of that folder (about 30 KB for 300 files) in its state folder, `~/.local/state/pusula/` on Linux and
+  macOS and `%LOCALAPPDATA%\pusula\` on Windows. A week of them is kept. It still never writes to the folders it shows.
+
 ## [0.2.0] - 2026-10-08
 
 One file to download and run on Windows, Linux and macOS; nothing to install.

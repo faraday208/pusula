@@ -21,6 +21,8 @@ It runs on your own computer and only reads. Nothing leaves your machine.
   Memory notes are linked by the `name` in their frontmatter.
 - **Health checks:** broken links, orphan files, links to memories or notes that are not written yet, frontmatter
   errors with the line they are on.
+- **What changed:** the overview compares the folder with how it was yesterday and a week ago: the tokens of every
+  session, the files that were added, removed, grew or shrank, and the links that broke or were fixed.
 - **For Obsidian vaults:** wikilinks resolved the way Obsidian does, tags, the entry note, recently changed and most
   linked notes.
 - **Live:** pages update while Claude (or you) edit the files.
@@ -117,7 +119,11 @@ browse your folders, whatever the setting, and the server answers only to IP add
 
 ## Privacy and safety
 
-- **Read-only.** pusula never writes to the folders it shows. The only file it writes is its own `sources.json`.
+- **Read-only.** pusula never writes to the folders it shows. It writes only files of its own: `sources.json`, and for
+  **What changed** one small summary of a folder a day (the tokens of each file and the broken links; about 30 KB for
+  300 files), taken the first time its overview is opened that day. The summaries are in `~/.local/state/pusula/` on
+  Linux and macOS (`$XDG_STATE_HOME/pusula/` when that is set) and in `%LOCALAPPDATA%\pusula\` on Windows; a week of them
+  is kept, and deleting the folder forgets them.
 - **Only `.md` files are indexed and served**; `settings.json`, credentials and other files never leave the server.
 - **Recognizing note folders reads a little of your notes.** To tell a folder of notes that has no `.obsidian/` folder,
   **Choose folder…** reads the first few kilobytes of some of its notes (at most 20 per folder) and only looks for a

@@ -6,8 +6,9 @@
 
 import {
   addBlock, addSourceBody, ageParts, ageSince, ancestorDirs, appVersion, arrivalTarget, blockIndexForLine, browseCrumbs, browseFound, browseListing,
-  browseStateJson, browseUrl, budgetParts, buildLinkMap, calloutClass, capitalize,
-  changedBlocks, changeName, closedAncestor, copyMethod, createMarkdown, createSlugger, decodeHref, displayPath, displayStatus,
+  browseStateJson, browseUrl, budgetParts, buildLinkMap, calloutClass, capitalize, CHANGE_PERIODS,
+  changedBlocks, changeDeltas, changeDirection, changeName, changesData, changesView, changeWhen, closedAncestor, copyMethod, createMarkdown, createSlugger,
+  decodeHref, displayPath, displayStatus,
   embedAssetKind, embedName, enumName, fileEnds, fileHash, filesWithTag, findClaudePaths, findInlineTags, findMarkdownLink,
   findWikiLink, flattenFiles, folderHolds, folderPaths, formatDelta, formatPercent, formatTokens, frontmatterProblem, highlightParts,
   homeSlug, isApplePlatform, isDirectory, isNoteProfile, isRelativePath, issueSection, issueStartsOpen,
@@ -47,6 +48,7 @@ const BROWSE_KEY = 'pusula.browse'; // sessionStorage: the folder the folder pic
 const FOUND_ROWS = 3; // folders the server found by itself that the picker lists before "show more" (the list below is what the window is for)
 const BROWSE_WAIT_MS = 150; // how long a folder may take before the picker says it is loading (a quicker answer would only make it flicker)
 const BROWSE_PAGE = 8; // rows that Page Up and Page Down move in the picker
+const CHANGES_WAIT_MS = 3000; // how long the overview waits for what changed before it is shown without it (the answer is an extra: a slow one does not hold the page)
 
 /** Problems first: this is the order of the link groups in the info panel (`Folder` is shown, never sent). */
 const STATUS_ORDER = ['Broken', 'Pending', 'Resolved', 'Folder', 'NonMarkdown', 'External'];
@@ -73,6 +75,7 @@ const state = {
   folders: new Set(), // the folder paths of the tree (a link to one is shown as "folder")
   labels: new Map(), // project folder (slug) -> the name it is shown by, see projectLabels in core.js
   overview: null, // .../overview response
+  changes: null, // .../changes response (see `changesData`), asked for with the overview; null when the server gives none: the "What changed" section is then left out
   file: null, // .../file response of the open file
   notFound: null, // path whose .../file answered 404
   error: null, // last load error
@@ -85,6 +88,7 @@ const state = {
   openBand: new Set(), // description groups of the budget band whose files are listed
   memoryOpen: false, // whether the project memory table of the overview is expanded
   layersRestOpen: false, // whether the layers that load only when needed are listed
+  changesSince: 'day', // what the "What changed" section compares with: 'day' (since the day before) or 'week' (since a week ago), see `CHANGE_PERIODS`
   legendOpen: false, // whether the legend at the bottom of the tree is expanded
   propertiesOpen: true, // whether the Properties block of a file is expanded
   live: 'connecting',
@@ -231,6 +235,7 @@ function loadSourceState(id) {
   state.openBand = ui.openBand;
   state.memoryOpen = ui.memoryOpen;
   state.layersRestOpen = ui.layersRestOpen;
+  state.changesSince = ui.changesSince;
   state.legendOpen = ui.legendOpen;
   state.propertiesOpen = ui.propertiesOpen;
   uiWritten = '';
@@ -340,11 +345,12 @@ function fileName(file) {
  * name and not its slug (`displayPath`): what gives way there is the project's place, then the middle of the file
  * name, and the project's name last of all. The full path is the tooltip. `line` makes the link open the file at
  * that source line, `heading` at that heading (and shows it after the name); `skillFirst` shows
- * `skills/x/SKILL.md` as `x · SKILL.md`, the skill first.
+ * `skills/x/SKILL.md` as `x · SKILL.md`, the skill first. `plain` is for a file that is not there (any more): the same path with no address, in the
+ * colour of text and nothing under the pointer (`.is-plain`), for it would lead nowhere.
  */
-function pathLink(path, { line, heading, skillFirst = false } = {}) {
-  const link = el('a', 'path-link');
-  link.href = fileHash(sid(), path, heading, line);
+function pathLink(path, { line, heading, skillFirst = false, plain = false } = {}) {
+  const link = el('a', plain ? 'path-link is-plain' : 'path-link');
+  if (!plain) link.href = fileHash(sid(), path, heading, line);
   link.title = heading ? `${path}#${heading}` : path;
   const shown = displayPath(path, state.labels);
   const skill = skillFirst && !isNotes() ? skillFile(path) : null;
@@ -551,13 +557,33 @@ async function loadTree() {
   return true;
 }
 
+/**
+ * What changed since an earlier day, or null. It is asked for with the overview, and asking is what makes the server keep today's summary of
+ * the source, so every time the overview is shown. It is a section of the page and no more: a server that has no such answer (an older one says
+ * 404), or none in time (`CHANGES_WAIT_MS`), leaves the section out and the page whole.
+ */
+async function loadChanges() {
+  let timer = 0;
+  try {
+    const late = new Promise((_, reject) => {
+      timer = window.setTimeout(reject, CHANGES_WAIT_MS);
+    });
+    return changesData(await Promise.race([getJson(sourceUrl('changes')), late]));
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 async function showOverview({ keepScroll = false, target = null, live = false } = {}) {
   const seq = ++navSeq;
   const previous = state.overview;
   try {
-    const data = await getJson(sourceUrl('overview'));
+    const [data, changes] = await Promise.all([getJson(sourceUrl('overview')), loadChanges()]);
     if (seq !== navSeq) return;
     state.overview = data;
+    state.changes = changes;
     state.error = null;
   } catch (error) {
     if (seq !== navSeq) return;
@@ -823,6 +849,7 @@ function resetSourceView() {
   state.folders = new Set();
   state.labels = new Map();
   state.overview = null;
+  state.changes = null;
   state.file = null;
   state.notFound = null;
   state.error = null;
@@ -1483,8 +1510,8 @@ function renderContent({ keepScroll = false, target = null } = {}) {
 /**
  * A page that is drawn again where the reader is (a live refresh, the sources page after a request) would take the focus with the
  * element that had it, and the reader would lose their place: a field half typed in, a button the keyboard was on. What the sources page
- * has that can keep the focus is marked `data-keep` (a key that is the same in the page that replaces it); this is the one that has it,
- * and where the caret was.
+ * (and the two buttons of "What changed" on the overview) has that can keep the focus is marked `data-keep` (a key that is the same in the
+ * page that replaces it); this is the one that has it, and where the caret was.
  */
 function keptFocus() {
   const node = document.activeElement;
@@ -1749,14 +1776,17 @@ function revealDir(path) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The page is a column of sections in reading order: the budget (its sentence is the title), the errors, the layers, what is to be
- * reviewed (both of issues, in one wrapper: see `issuesBlock`) and project memory. When #content is wide enough app.css lays the issues out
- * as a second column, the errors above what is to be reviewed.
+ * The page is a column of sections in reading order: the budget (its sentence is the title), what changed since an earlier day (left out where
+ * the server gives no answer), the errors, the layers, what is to be reviewed (both of issues, in one wrapper: see `issuesBlock`) and project
+ * memory. When #content is wide enough app.css lays the issues out as a second column, the errors above what is to be reviewed.
  */
 function overviewPage(data) {
   if (isNotes()) return notesOverviewPage(data);
   const page = el('div', 'page overview');
-  page.append(overviewHead(data), budgetSection(data), issuesBlock(data), layersSection(data), memorySection(data));
+  page.append(overviewHead(data), budgetSection(data));
+  const changes = changesSection();
+  if (changes !== null) page.append(changes);
+  page.append(issuesBlock(data), layersSection(data), memorySection(data));
   return page;
 }
 
@@ -1977,6 +2007,153 @@ function budgetSection(data) {
   const note = memoryNote(data);
   if (note) section.append(note);
   return section;
+}
+
+// ---- What changed ----------------------------------------------------------------------------
+
+/**
+ * What changed in the source since the day before, or since a week ago (the reader's choice): the title and the two buttons that choose, and under
+ * them what the choice shows (`changesBody`). A Claude configuration has it after the budget, a source of notes after where to start. The
+ * answer is `state.changes`; where there is none (an older server) there is no section. Nothing in it judges: a file that grew is not an error, so
+ * the differences are text with their sign, in no colour.
+ */
+function changesSection() {
+  if (state.changes === null) return null;
+  const section = el('section', 'section ov-changes');
+  const body = el('div', 'changes-body');
+  const head = el('div', 'changes-head');
+  head.append(el('h2', null, t('changes.title')), changesSwitch(body));
+  body.append(...changesBody());
+  section.append(head, body);
+  return section;
+}
+
+/**
+ * The two buttons of the head, one for each of `CHANGE_PERIODS`; the one that is the choice says so (`aria-pressed`). A click keeps the choice for the
+ * source and draws `body` again in place, so the buttons stay and the keyboard stays on the one that was used. A live refresh draws the whole page
+ * again: `data-keep` gives the focus back to the button that had it.
+ */
+function changesSwitch(body) {
+  const group = el('div', 'changes-switch');
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', t('changes.choose'));
+  const buttons = CHANGE_PERIODS.map((period) => {
+    const button = el('button', 'changes-btn', t(`changes.${period}`));
+    button.type = 'button';
+    button.dataset.keep = `changes:${period}`;
+    button.setAttribute('aria-pressed', String(state.changesSince === period));
+    button.addEventListener('click', () => {
+      if (state.changesSince === period) return;
+      state.changesSince = period;
+      buttons.forEach((other, index) => other.setAttribute('aria-pressed', String(CHANGE_PERIODS[index] === period)));
+      body.replaceChildren(...changesBody());
+      saveUi();
+      scheduleFit();
+    });
+    return button;
+  });
+  group.append(...buttons);
+  return group;
+}
+
+/**
+ * What is under the head for the choice (`changesView` decides what there is to say): what is the matter with today's summary, one quiet line
+ * about what is compared with, the totals before and after, and then the lists, or the sentence that stands for them.
+ */
+function changesBody() {
+  const view = changesView(state.changes, state.changesSince, { notes: isNotes() });
+  const nodes = [];
+  if (view.notice !== null) nodes.push(el('p', 'muted change-note', t(`changes.${view.notice.kind}`, { reason: view.notice.reason })));
+  const when = view.when === null ? '' : changeWhen(view.when, getLang());
+  if (when !== '') nodes.push(el('p', 'muted change-base', t('changes.base', { when })));
+  if (view.totals.length > 0) nodes.push(changeTotals(view.totals));
+  if (view.sentence !== null) nodes.push(changeSentence(view.sentence));
+  if (view.lists.length > 0) {
+    const issues = issueRows();
+    const files = new Set(flattenFiles(state.tree?.nodes).map((file) => file.path)); // the file of a link that stopped being broken may be gone: its path is then text
+    nodes.push(...view.lists.map((list) => changeList(list, issues, files)));
+  }
+  return nodes;
+}
+
+/** "Her oturum ~12K → ~12.4K +365", "Dosya 318 → 319 +1": the two totals before and after, and the difference only where there is one. */
+function changeTotals(totals) {
+  const list = el('dl', 'change-totals');
+  for (const { key, before, after, delta } of totals) {
+    const value = el('dd', null, t('changes.range', { before, after }));
+    if (delta !== '') value.append(' ', el('span', 'change-delta', delta));
+    const item = el('div', 'change-total');
+    item.append(el('dt', null, t(`changes.${key}`)), value);
+    list.append(item);
+  }
+  return list;
+}
+
+/** The sentence that is there instead of the lists: no earlier day (or week) to compare with, or nothing has changed. */
+function changeSentence({ kind, day }) {
+  if (kind === 'none') return el('p', 'change-sentence', t('changes.none'));
+  return el('p', 'muted change-sentence', kind === 'noWeek' ? t('changes.noWeek', { date: changeWhen(day, getLang()) }) : t('changes.noDay'));
+}
+
+/** A small block: the name of the list with how many rows it has, and its rows (`LIST_ROWS`, then "show more"). Each comparison folds its lists by itself. */
+function changeList({ key, rows }, issues, files) {
+  const box = el('div', 'change-list');
+  const title = el('h3', 'change-title');
+  title.append(t(`changes.${key}`), ' ', el('span', 'count', String(rows.length)));
+  const link = key === 'newlyBroken' || key === 'noLongerBroken';
+  const items = rows.map((entry) => (link ? changeLinkRow(key, entry, issues, files) : changeFileRow(key, entry)));
+  box.append(title, ...limitedList(`changes:${state.changesSince}:${key}`, 'change-rows', items));
+  return box;
+}
+
+/**
+ * A file that came, went or changed its size: how it loads, its path (text when the file is gone: there is nothing to go to), and at the end of the row
+ * the difference in its tokens and in the part of it that loads every session. A note has no load marker and no tokens, so its row is its path and,
+ * for a note that grew or shrank, the word that says which.
+ */
+function changeFileRow(key, entry) {
+  const row = el('li', 'change-row');
+  const notes = isNotes();
+  const file = el('span', 'change-file');
+  if (!notes && LOAD_MODES.includes(enumName(entry.loadMode))) file.append(loadDot(entry.loadMode));
+  file.append(pathLink(entry.path, { skillFirst: true, plain: key === 'removed' }));
+  row.append(file);
+  if (!notes) {
+    const numbers = changeNumbers(changeDeltas(key, entry));
+    if (numbers !== null) row.append(numbers);
+  } else if (key === 'resized') {
+    const direction = changeDirection(entry);
+    if (direction !== null) row.append(el('span', 'change-numbers change-every', t(`changes.${direction}`)));
+  }
+  return row;
+}
+
+/** "+1.2K · her oturumda +40": the difference in the tokens of a file, then quietly the part of it that loads every session (the words alone when it is all of it); null when neither changed. */
+function changeNumbers({ tokens, everySession }) {
+  if (tokens === '' && everySession === null) return null;
+  const numbers = el('span', 'change-numbers');
+  numbers.title = t('tokens.hint');
+  if (tokens !== '') numbers.append(el('span', 'change-delta', tokens));
+  if (everySession !== null) {
+    const words = everySession.delta === null ? t('changes.everySession') : t('changes.everySessionDelta', { delta: everySession.delta });
+    numbers.append(el('span', 'change-every', tokens === '' ? words : ` · ${words}`));
+  }
+  return numbers;
+}
+
+/**
+ * A link that became broken (a row of the errors: the path leads to its line) or stopped being broken (it has no line: the path leads to the file, which may be
+ * gone, and then it is text).
+ */
+function changeLinkRow(key, item, issues, files) {
+  const row = document.createElement('li');
+  if (key === 'newlyBroken' && positiveLine(item.line) !== null) {
+    row.append(...issues.broken(item));
+    return row;
+  }
+  const source = pathLink(item.source, { plain: !files.has(item.source) });
+  row.append(issueLine(source, rawCode(item.raw), el('span', 'muted tail', `(${t(`kind.${enumName(item.kind)}`)})`)));
+  return row;
 }
 
 // ---- Issues ----------------------------------------------------------------------------------
@@ -2338,9 +2515,9 @@ function memorySection(data) {
 
 /**
  * The overview of a vault or a Markdown folder: its name and what it holds, the notes that carry the tag the address asks for (above
- * everything else: it is where the reader arrives), where to start (the entry note, the notes changed last, the notes linked to most), the
- * errors, the tags and what is to be reviewed. There is no budget, no layers and no memory: those are a Claude configuration's. Wide, it is the
- * same two columns as the other overview: the issues beside the rest.
+ * everything else: it is where the reader arrives), where to start (the entry note, the notes changed last, the notes linked to most), what
+ * changed since an earlier day, the errors, the tags and what is to be reviewed. There is no budget, no layers and no memory: those are a Claude
+ * configuration's. Wide, it is the same two columns as the other overview: the issues beside the rest.
  */
 function notesOverviewPage(data) {
   const page = el('div', 'page overview');
@@ -2348,6 +2525,8 @@ function notesOverviewPage(data) {
   if (state.route.tag) page.append(taggedSection(state.route.tag));
   const front = frontSection(noteFront(data));
   if (front !== null) page.append(front);
+  const changes = changesSection();
+  if (changes !== null) page.append(changes);
   page.append(issuesBlock(data), tagsSection(data));
   return page;
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pusula.Browse;
 using Pusula.Files;
+using Pusula.History;
 using Pusula.Indexing;
 using Pusula.LiveReload;
 using Pusula.Overview;
@@ -71,6 +72,9 @@ builder.Services.AddSingleton(BrowseLimits.Default);
 builder.Services.AddSingleton(DriveFolders.ForThisMachine());
 builder.Services.AddSingleton<FolderFinder>();
 
+// What changed: the daily summaries of the sources, kept in the state folder of pusula and dated by the same clock.
+builder.Services.AddSingleton<HistoryStore>();
+
 builder.Services.AddSingleton<SourceRegistry>();
 builder.Services.AddSingleton<ISourceRegistry>(services => services.GetRequiredService<SourceRegistry>());
 builder.Services.AddSingleton<ISourceEditor>(services => services.GetRequiredService<SourceRegistry>());
@@ -124,6 +128,7 @@ RouteGroupBuilder source = app.MapSources();
 source.MapTree();
 source.MapFiles();
 source.MapOverview();
+source.MapChanges();
 source.MapEvents();
 
 // The folder browser that adding a source is done with: /api/browse
