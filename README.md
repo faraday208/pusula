@@ -97,7 +97,8 @@ JSON, where a single backslash starts an escape.
   Markdown files, wikilinks between the notes), and lets you browse folders. Changes are written to `sources.json`;
   editing the file by hand works too, without a restart.
 - **Profiles** are detected automatically: a folder with `.obsidian/` is an Obsidian vault, a Claude Code
-  configuration folder is shown with load layers and tokens, anything else as plain Markdown.
+  configuration folder is shown with load layers and tokens, anything else as plain Markdown. A Claude Code folder is
+  labelled **global** when it is `~/.claude` and **project** when it is the `.claude` folder of a project.
 - **Folders on the command line** (`pusula <folder> [<folder>…]`, before any option such as `--urls`) replace the list.
 
 ## Remote access

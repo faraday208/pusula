@@ -6,7 +6,7 @@
 
 import {
   addBlock, addSourceBody, ageParts, ageSince, ancestorDirs, appVersion, arrivalTarget, blockIndexForLine, browseCrumbs, browseFound, browseListing,
-  browseStateJson, browseUrl, budgetParts, buildLinkMap, calloutClass, capitalize, CHANGE_PERIODS,
+  browseStateJson, browseUrl, budgetParts, buildLinkMap, calloutClass, capitalize, CHANGE_PERIODS, CLAUDE_SCOPES,
   changedBlocks, changeDeltas, changeDirection, changeName, changesData, changesView, changeWhen, closedAncestor, copyMethod, createMarkdown, createSlugger,
   decodeHref, displayPath, displayStatus,
   embedAssetKind, embedName, enumName, fileEnds, fileHash, filesWithTag, findClaudePaths, findInlineTags, findMarkdownLink,
@@ -950,12 +950,24 @@ function sourceMenuRow(source) {
   const dot = el('span', readable ? 'source-dot is-ok' : 'source-dot is-off');
   dot.setAttribute('aria-hidden', 'true');
   dot.title = readable ? t('source.status.ok') : t('source.status.off');
-  const meta = el('span', 'menu-meta', t(`source.profile.${profileName(source.profile)}`));
+  const meta = el('span', 'menu-meta', sourceProfileText(source));
   if (!readable) meta.append(` \u00b7 ${t('source.status.off')}`);
   link.append(dot, el('span', 'menu-name', source.name), meta);
   link.title = source.path;
   row.append(link);
   return row;
+}
+
+/**
+ * What a source is, in words: its profile and, for a Claude configuration, which one it is (`claudeScope`): the global one or a project's.
+ * A server that does not say (an older one, or a Claude folder that is neither) leaves the profile alone.
+ */
+function sourceProfileText(source) {
+  const profile = t(`source.profile.${profileName(source.profile)}`);
+  const scope = enumName(source.claudeScope);
+  return profileName(source.profile) === 'Claude' && CLAUDE_SCOPES.includes(scope)
+    ? `${profile} \u00b7 ${t(`source.claudeScope.${scope}`)}`
+    : profile;
 }
 
 /** The sources of the list drawn again (and the focus put back on the row it was on); "manage sources" is the current page on the sources page. */
@@ -2742,7 +2754,7 @@ function sourceCard(source, { open, last }) {
   const main = el('span', 'source-main');
   main.append(el('strong', 'source-title', source.name), el('span', 'source-path', source.path));
   const meta = el('span', 'source-meta');
-  meta.append(el('span', 'source-profile', t(`source.profile.${profileName(source.profile)}`)));
+  meta.append(el('span', 'source-profile', sourceProfileText(source)));
   if (readable) meta.append(el('span', 'source-count', tn(`source.count.${isNoteProfile(source.profile) ? 'notes' : 'files'}`, source.fileCount ?? 0)));
   if (open) meta.append(el('span', 'source-tag is-open', t('source.open')));
   else if (last) meta.append(el('span', 'source-tag', t('source.last')));

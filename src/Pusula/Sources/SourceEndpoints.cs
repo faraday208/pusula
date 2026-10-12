@@ -29,7 +29,9 @@ internal static class SourceEndpoints
             .WithDescription(
                 "Lists the folders this server shows, in the order they were configured: their id (the part of the URL "
                 + "after /api/sources/), name, full path, profile (Claude, Vault or Markdown, as the folder turned out to "
-                + "be), whether the folder could be read, the number of indexed Markdown files and, for a folder that "
+                + "be), for a Claude Code folder which configuration it is ('claudeScope': Global for the .claude folder in "
+                + "the home directory, Project for a folder called .claude anywhere else; left out for any other folder), "
+                + "whether the folder could be read, the number of indexed Markdown files and, for a folder that "
                 + "could not be shown, why: 'error' says it in an English sentence (it does not exist, cannot be read, or is "
                 + "too large: more than 20,000 Markdown files, 50,000 folders or 256 MiB of Markdown) and 'errorCode' as a "
                 + "code to act on: FolderMissing, NotReadable or TooLarge. The endpoints of such a source answer 503 with the "
@@ -99,12 +101,12 @@ internal static class SourceEndpoints
         return source;
     }
 
-    internal static Ok<SourcesResponse> GetSources(ISourceRegistry registry, IOptions<PusulaOptions> options, HttpContext http)
+    internal static Ok<SourcesResponse> GetSources(ISourceRegistry registry, IOptions<PusulaOptions> options, UserDirectories directories, HttpContext http)
     {
         bool remoteEdit = options.Value.AllowRemoteEdit;
         EditBlock? blocked = SourceEditAccess.Blocked(http, registry.SourcesFile, remoteEdit);
         return TypedResults.Ok(new SourcesResponse(
-            [.. registry.Sources.Select(ToResponse)],
+            [.. registry.Sources.Select(entry => ToResponse(entry, directories.Home))],
             CanEdit: blocked is null,
             Environment.MachineName,
             remoteEdit,
@@ -132,7 +134,7 @@ internal static class SourceEndpoints
         }
 
         SourceEntry added = result.Entry!;
-        return TypedResults.Created($"/api/sources/{added.Definition.Id}", ToResponse(added));
+        return TypedResults.Created($"/api/sources/{added.Definition.Id}", ToResponse(added, directories.Home));
     }
 
     internal static async Task<Results<NoContent, ProblemHttpResult>> RemoveSource(string id, ISourceEditor editor, CancellationToken cancellationToken)
@@ -146,7 +148,7 @@ internal static class SourceEndpoints
         return TypedResults.NoContent();
     }
 
-    private static SourceResponse ToResponse(SourceEntry entry) =>
+    private static SourceResponse ToResponse(SourceEntry entry, string homeDirectory) =>
         new(
             entry.Definition.Id,
             entry.Definition.Name,
@@ -155,5 +157,30 @@ internal static class SourceEndpoints
             entry.IsAvailable,
             entry.Index?.Current.Files.Count ?? 0,
             entry.Error,
-            entry.ErrorCode?.ToString());
+            entry.ErrorCode?.ToString(),
+            ScopeOf(entry.Definition, homeDirectory)?.ToString());
+
+    /// <summary>
+    /// Which Claude Code configuration a source is: <see cref="ClaudeScope.Global"/> for the <c>.claude</c> folder in the home
+    /// directory, <see cref="ClaudeScope.Project"/> for a folder called <c>.claude</c> anywhere else. Null for a source that is not
+    /// a Claude Code folder, for a Claude Code folder with another name (a copy of a configuration, the demo in <c>samples/</c>),
+    /// and when the home directory is not known.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="homeDirectory">The home directory of the user; empty when it is not known.</param>
+    internal static ClaudeScope? ScopeOf(SourceDefinition source, string homeDirectory)
+    {
+        if (source.Profile != SourceProfile.Claude || homeDirectory.Length == 0)
+        {
+            return null;
+        }
+
+        if (SourcePaths.Same(source.Path, Path.Join(homeDirectory, ".claude")))
+        {
+            return ClaudeScope.Global;
+        }
+
+        string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(source.Path));
+        return string.Equals(name, ".claude", PathComparison.Current) ? ClaudeScope.Project : null;
+    }
 }

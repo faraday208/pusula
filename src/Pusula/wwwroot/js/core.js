@@ -26,6 +26,9 @@ export const LINK_STATUSES = ['Resolved', 'NonMarkdown', 'Broken', 'Pending', 'E
 /** How a source (a folder the server reads) is read: a Claude configuration, an Obsidian vault, any other Markdown folder. */
 export const PROFILES = ['Claude', 'Vault', 'Markdown'];
 
+/** Which Claude configuration a source is (`claudeScope`): the global one in the home directory, or a project's `.claude` folder. */
+export const CLAUDE_SCOPES = ['Global', 'Project'];
+
 /**
  * Normalizes an enum string to PascalCase. The server sends PascalCase names; this keeps the
  * client working if a naming policy ever turns them into camelCase.

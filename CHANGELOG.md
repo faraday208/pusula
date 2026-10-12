@@ -11,6 +11,8 @@ All notable changes to pusula are listed here. The format follows
 - **What changed** on the overview: how the folder differs from yesterday and from a week ago. The tokens of every
   session before and after, the files that were added, removed, grew or shrank, and the links that are newly broken or
   no longer broken.
+- The source switcher and the **Sources** page say which Claude Code configuration a source is: **global** for
+  `~/.claude`, **project** for the `.claude` folder of a project. Contributed by @ketpatil77.
 
 ### Changed
 

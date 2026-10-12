@@ -153,8 +153,24 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         }
 
         errorCode.GetProperty("type").EnumerateArray().Select(type => type.GetString()).ShouldBe(["null", "string"], ignoreOrder: true);
-        source.GetProperty("properties").PropertyNames().ShouldBe(["id", "name", "path", "profile", "available", "fileCount", "error", "errorCode"], ignoreOrder: true);
+        source.GetProperty("properties").PropertyNames().ShouldBe(["id", "name", "path", "profile", "available", "fileCount", "error", "errorCode", "claudeScope"], ignoreOrder: true);
         source.GetProperty("required").EnumerateArray().Select(name => name.GetString()).ShouldBe(["id", "name", "path", "profile", "available", "fileCount"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task GetOpenApiDocument_ClaudeScope_IsDocumentedOnTheSourceAsText()
+    {
+        using JsonDocument json = await fixture.Client.GetJsonAsync("/openapi/v1.json");
+        JsonElement scope = json.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("SourceResponse").GetProperty("properties").GetProperty("claudeScope");
+
+        // Like errorCode: text whose values the description lists, left out when there is nothing to say.
+        string description = scope.GetProperty("description").GetString()!;
+        foreach (string text in new[] { "Global", "Project", ".claude", "home directory" })
+        {
+            description.ShouldContain(text);
+        }
+
+        scope.GetProperty("type").EnumerateArray().Select(type => type.GetString()).ShouldBe(["null", "string"], ignoreOrder: true);
     }
 
     [Fact]

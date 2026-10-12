@@ -1926,13 +1926,22 @@ describe('the source switch and the sources page (S1)', () => {
     assert.match(card, /if \(open\) body\.setAttribute\('aria-current', 'true'\)/);
     assert.match(card, /el\('strong', 'source-title', source\.name\)/);
     assert.match(card, /el\('span', 'source-path', source\.path\)/);
-    assert.match(card, /t\(`source\.profile\.\$\{profileName\(source\.profile\)\}`\)/);
+    assert.match(card, /sourceProfileText\(source\)/);
     assert.match(card, /tn\(`source\.count\.\$\{isNoteProfile\(source\.profile\) \? 'notes' : 'files'\}`, source\.fileCount \?\? 0\)/);
     assert.match(card, /t\('source\.open'\)/);
     assert.match(card, /t\('source\.last'\)/);
     assert.match(card, /body\.append\(el\('span', 'source-error', unavailableShort\(source\.errorCode\)\)\)/, 'why a folder cannot be read comes from its code, in the page\'s words');
     assert.ok(!/\bsource\.error\b/.test(code('app.js')), 'the server\'s own sentence is English and never shown');
     assert.ok(!/innerHTML/.test(card), 'a name and a path are text');
+  });
+
+  it('Claude sources say whether they are the global or project configuration', () => {
+    const label = functionSource('sourceProfileText');
+    assert.match(label, /const scope = enumName\(source\.claudeScope\)/);
+    assert.match(label, /profileName\(source\.profile\) === 'Claude' && CLAUDE_SCOPES\.includes\(scope\)/, 'only a value the page knows, and only for a Claude source');
+    assert.match(label, /t\(`source\.claudeScope\.\$\{scope\}`\)/);
+    assert.match(functionSource('sourceMenuRow'), /sourceProfileText\(source\)/);
+    assert.match(functionSource('sourceCard'), /sourceProfileText\(source\)/);
   });
 
   it('an address that names a source that is not listed says so on the page', () => {
@@ -2683,7 +2692,7 @@ describe('the menu of sources (P2)', () => {
     assert.match(row, /el\('span', readable \? 'source-dot is-ok' : 'source-dot is-off'\)/);
     assert.match(row, /dot\.setAttribute\('aria-hidden', 'true'\)/);
     assert.match(row, /readable \? t\('source\.status\.ok'\) : t\('source\.status\.off'\)/);
-    assert.match(row, /t\(`source\.profile\.\$\{profileName\(source\.profile\)\}`\)/);
+    assert.match(row, /sourceProfileText\(source\)/);
     assert.match(row, /if \(!readable\) meta\.append\(` \\u00b7 \$\{t\('source\.status\.off'\)\}`\)/, 'in words as well: a dot is not the only way to say it');
     assert.match(row, /link\.title = source\.path/);
     assert.ok(!/innerHTML/.test(row), 'a name and a path are text');
