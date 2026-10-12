@@ -1937,8 +1937,9 @@ describe('the source switch and the sources page (S1)', () => {
 
   it('Claude sources say whether they are the global or project configuration', () => {
     const label = functionSource('sourceProfileText');
-    assert.match(label, /source\.claudeScope === 'global' \|\| source\.claudeScope === 'project'/);
-    assert.match(label, /t\(`source\.claudeScope\.\$\{source\.claudeScope\}`\)/);
+    assert.match(label, /const scope = enumName\(source\.claudeScope\)/);
+    assert.match(label, /profileName\(source\.profile\) === 'Claude' && CLAUDE_SCOPES\.includes\(scope\)/, 'only a value the page knows, and only for a Claude source');
+    assert.match(label, /t\(`source\.claudeScope\.\$\{scope\}`\)/);
     assert.match(functionSource('sourceMenuRow'), /sourceProfileText\(source\)/);
     assert.match(functionSource('sourceCard'), /sourceProfileText\(source\)/);
   });

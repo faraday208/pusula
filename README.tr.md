@@ -96,7 +96,8 @@ ters bölü bir kaçış dizisi başlatır.
   dosyalar, notlar arasında wikilink'ler) listeler ve klasörlerde gezinmeni sağlar. Değişiklik `sources.json`'a
   yazılır; dosyayı elle düzenlemek de olur, yeniden başlatmak gerekmez.
 - **Profil** kendiliğinden anlaşılır: `.obsidian/` içeren klasör Obsidian kasasıdır, Claude Code yapılandırma
-  klasörü katmanları ve token'larıyla gösterilir, gerisi düz Markdown olarak.
+  klasörü katmanları ve token'larıyla gösterilir, gerisi düz Markdown olarak. Claude Code klasörü `~/.claude` ise
+  **global**, bir projenin `.claude` klasörüyse **proje** etiketi taşır.
 - **Komut satırındaki klasörler** (`pusula <klasör> [<klasör>…]`, `--urls` gibi seçeneklerden önce) listenin yerine geçer.
 
 ## Uzaktan erişim

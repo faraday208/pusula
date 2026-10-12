@@ -24,6 +24,38 @@ public sealed class SourcesEndpointTests(SourcesFixture fixture) : IClassFixture
 
     // ---- /api/sources -----------------------------------------------------------------------------------------
 
+    // The .claude folder in the home directory is the global configuration, a folder called .claude anywhere else a project's; any other
+    // folder, a Claude Code folder with another name among them, says nothing of it.
+    [Fact]
+    public async Task GetSources_ClaudeFolders_SayWhichConfigurationTheyAre()
+    {
+        using var temp = new TempDirectory();
+        string home = temp.CreateDirectory("home");
+        string global = temp.CreateDirectory(Path.Join("home", ".claude"));
+        string project = temp.CreateDirectory(Path.Join("home", "Workspace", "shop", ".claude"));
+        string copy = temp.CreateDirectory(Path.Join("home", "backup", "claude-config"));
+        string notes = temp.CreateDirectory(Path.Join("home", "notes"));
+        string sourcesFile = temp.Write("sources.json", $$"""
+            { "sources": [
+              { "id": "global", "path": {{JsonSerializer.Serialize(global)}} },
+              { "id": "shop", "path": {{JsonSerializer.Serialize(project)}} },
+              { "id": "copy", "path": {{JsonSerializer.Serialize(copy)}}, "profile": "claude" },
+              { "id": "notes", "path": {{JsonSerializer.Serialize(notes)}}, "profile": "markdown" }
+            ] }
+            """);
+        await using PusulaFactory factory = PusulaFactory.FromSourcesFile(sourcesFile, new UserDirectories(home, temp.CreateDirectory("data")));
+        using HttpClient client = factory.CreateClient();
+
+        using JsonDocument json = await client.GetJsonAsync("/api/sources");
+        JsonElement[] sources = [.. json.RootElement.GetProperty("sources").EnumerateArray()];
+
+        sources.Select(source => source.GetProperty("profile").GetString()).ShouldBe(["Claude", "Claude", "Claude", "Markdown"]);
+        sources[0].GetProperty("claudeScope").GetString().ShouldBe("Global");
+        sources[1].GetProperty("claudeScope").GetString().ShouldBe("Project");
+        sources[2].TryGetProperty("claudeScope", out _).ShouldBeFalse();
+        sources[3].TryGetProperty("claudeScope", out _).ShouldBeFalse();
+    }
+
     [Fact]
     public async Task GetSources_ListsEverySourceInOrderWithItsProfileAvailabilityAndFileCount()
     {

@@ -6,7 +6,7 @@
 
 import {
   addBlock, addSourceBody, ageParts, ageSince, ancestorDirs, appVersion, arrivalTarget, blockIndexForLine, browseCrumbs, browseFound, browseListing,
-  browseStateJson, browseUrl, budgetParts, buildLinkMap, calloutClass, capitalize, CHANGE_PERIODS,
+  browseStateJson, browseUrl, budgetParts, buildLinkMap, calloutClass, capitalize, CHANGE_PERIODS, CLAUDE_SCOPES,
   changedBlocks, changeDeltas, changeDirection, changeName, changesData, changesView, changeWhen, closedAncestor, copyMethod, createMarkdown, createSlugger,
   decodeHref, displayPath, displayStatus,
   embedAssetKind, embedName, enumName, fileEnds, fileHash, filesWithTag, findClaudePaths, findInlineTags, findMarkdownLink,
@@ -958,10 +958,15 @@ function sourceMenuRow(source) {
   return row;
 }
 
+/**
+ * What a source is, in words: its profile and, for a Claude configuration, which one it is (`claudeScope`): the global one or a project's.
+ * A server that does not say (an older one, or a Claude folder that is neither) leaves the profile alone.
+ */
 function sourceProfileText(source) {
   const profile = t(`source.profile.${profileName(source.profile)}`);
-  return profileName(source.profile) === 'Claude' && (source.claudeScope === 'global' || source.claudeScope === 'project')
-    ? `${profile} \u00b7 ${t(`source.claudeScope.${source.claudeScope}`)}`
+  const scope = enumName(source.claudeScope);
+  return profileName(source.profile) === 'Claude' && CLAUDE_SCOPES.includes(scope)
+    ? `${profile} \u00b7 ${t(`source.claudeScope.${scope}`)}`
     : profile;
 }
 

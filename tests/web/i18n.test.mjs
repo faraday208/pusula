@@ -1192,3 +1192,14 @@ describe('what changed since an earlier day (#7)', () => {
     for (const prefix of ['changes.${period}', 'changes.${view.notice.kind}', 'changes.${key}', 'changes.${direction}']) assert.ok(appSource.includes(`t(\`${prefix}\``), prefix);
   });
 });
+
+describe('the configuration a Claude source is (#8)', () => {
+  it('every value the server sends has its word in both languages, asked for by that value', () => {
+    for (const lang of i18n.LANGS) {
+      for (const scope of core.CLAUDE_SCOPES) assert.equal(typeof i18n.DICT[lang][`source.claudeScope.${scope}`], 'string', `${lang}: ${scope}`);
+    }
+    const keys = Object.keys(i18n.DICT.en).filter((key) => key.startsWith('source.claudeScope.')).map((key) => key.slice('source.claudeScope.'.length));
+    assert.deepEqual(keys.sort(), [...core.CLAUDE_SCOPES].sort(), 'no word for a value the server does not send');
+    assert.ok(appSource.includes('t(`source.claudeScope.${scope}`)'));
+  });
+});
