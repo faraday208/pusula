@@ -69,6 +69,9 @@ internal sealed class PusulaFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // No test opens a browser on the machine it runs on, in Production either.
+        builder.UseSetting(PusulaOptions.OpenBrowserKey, "false");
+
         if (_root is not null)
         {
             builder.UseSetting("Pusula:Root", _root);

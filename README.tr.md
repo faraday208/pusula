@@ -45,8 +45,10 @@ mv pusula-*-linux-x64 pusula && chmod +x pusula   # Mac'te dosyanın sonu osx-ar
 ./pusula                                         # ya da kaynak listen
 ```
 
-Windows'ta `pusula-…-win-x64.exe`'yi bir terminalde aynı argümanlarla çalıştır. Sonra <http://localhost:5190> adresini
-aç. Her sürüm dosyalarının SHA-256 özetlerini `SHA256SUMS.txt`'de verir.
+Windows'ta `pusula-…-win-x64.exe`'ye çift tıkla ya da bir terminalde aynı argümanlarla çalıştır. pusula
+<http://localhost:5190> adresini tarayıcında açar; penceresini kapatınca (ya da Ctrl+C) durur. Çalışırken yeniden
+başlatılırsa çalışanı açar. `--no-browser` tarayıcıyı kapalı bırakır; SSH üzerinden ya da masaüstü olmayan bir Linux'ta
+zaten açılmaz. Her sürüm dosyalarının SHA-256 özetlerini `SHA256SUMS.txt`'de verir.
 
 Dosyalar henüz imzalı değil, bu yüzden ilk açılışta bir adım daha gerekir:
 

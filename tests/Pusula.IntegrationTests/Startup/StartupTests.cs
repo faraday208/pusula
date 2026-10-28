@@ -279,7 +279,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address, "--no-browser" }]);
         }
         finally
         {
@@ -292,6 +292,42 @@ public sealed class StartupTests
         error.ShouldStartWith("pusula: ");
         error.ShouldContain(address);
         error.ShouldContain("--urls");
+        error.TrimEnd().ShouldNotContain('\n');
+    }
+
+    // The same port, with the browser to be opened (a double click on the downloaded file): the entry point asks what holds the
+    // port, after the start failed and the services are disposed (reading the settings then used to crash). It is not a pusula,
+    // so nothing is opened, and it is still one line and exit code 1. DISPLAY stands for the desktop on Linux; only the tests
+    // of this class read it (the factories leave the browser off), and they run one after the other.
+    [Fact]
+    public void Main_PortThatIsInUseAndTheBrowserToBeOpened_AsksWhatHoldsItAndWritesOneErrorLine()
+    {
+        using var temp = new TempDirectory();
+        var taken = new TcpListener(IPAddress.Loopback, 0);
+        taken.Start();
+        string address = $"http://127.0.0.1:{((IPEndPoint)taken.LocalEndpoint).Port}";
+        string? display = Environment.GetEnvironmentVariable("DISPLAY");
+        TextWriter originalError = Console.Error;
+        using var capturedError = new StringWriter();
+        object? exitCode;
+
+        Environment.SetEnvironmentVariable("DISPLAY", ":0");
+        Console.SetError(capturedError);
+        try
+        {
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address, "--Pusula:OpenBrowser", "true" }]);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+            Environment.SetEnvironmentVariable("DISPLAY", display);
+            taken.Stop();
+        }
+
+        exitCode.ShouldBe(1);
+        string error = capturedError.ToString();
+        error.ShouldStartWith("pusula: ");
+        error.ShouldContain(address);
         error.TrimEnd().ShouldNotContain('\n');
     }
 

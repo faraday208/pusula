@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Pusula.Browse;
 using Pusula.Files;
 using Pusula.History;
@@ -48,6 +49,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(commandLine.HostArg
 builder.Configuration.Sources.Insert(0, BuiltInContent.Settings());
 
 commandLine.AddRootsTo(builder.Configuration);
+commandLine.AddNoBrowserTo(builder.Configuration);
 
 // A start that fails comes out of app.Run below, which says what went wrong in one line (or the runtime prints the
 // exception); the host's own error line about it would put the stack trace on the console first. Its critical lines stay.
@@ -91,13 +93,37 @@ if (sourcesError is not null)
     return 1;
 }
 
-// Once the server listens, an address that other devices can reach is said on the error stream: there is no login.
+// Whether the page is opened in the browser: once the server listens, and when a pusula already holds the port.
+bool openBrowser = Browser.ShouldOpen(
+    app.Services.GetRequiredService<IOptions<PusulaOptions>>().Value.OpenBrowser,
+    app.Environment.IsDevelopment(),
+    OperatingSystem.IsWindows(),
+    OperatingSystem.IsMacOS(),
+    Environment.GetEnvironmentVariable);
+
+// The addresses to listen on, read now: after a start that failed, the settings are disposed with the services.
+string? urls = app.Configuration[WebHostDefaults.ServerUrlsKey];
+
+// Once the server listens, an address that other devices can reach is said on the error stream: there is no login. Then
+// the page is opened, so that the downloaded file started with a double click shows more than a console window.
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     ICollection<string>? addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses;
     if (addresses is not null && NetworkWarning.For(addresses) is { } warning)
     {
         Console.Error.WriteLine(warning);
+    }
+
+    if (openBrowser && addresses is not null && Browser.PageAddress(addresses) is { } page)
+    {
+        if (Browser.Open(page))
+        {
+            Console.WriteLine($"pusula: opened {page} in the browser (start with {CommandLine.NoBrowserOption} to leave it closed)");
+        }
+        else
+        {
+            Console.Error.WriteLine($"pusula: could not open a browser; open {page}");
+        }
     }
 });
 
@@ -147,8 +173,15 @@ catch (FolderTooLargeException exception)
 }
 catch (IOException exception) when (exception.InnerException is AddressInUseException)
 {
-    // The address is taken, often by a pusula that is already running: one line and exit code 1 as well. The message of
-    // the server names the address.
+    // The address is taken, often by a pusula that is already running. A second double click on the downloaded file means
+    // "show me pusula": when the browser is to be opened and a pusula answers there, that one is opened, exit code 0.
+    if (openBrowser && Browser.AlreadyRunning(urls, Browser.IsPusula, Browser.Open) is { } running)
+    {
+        Console.WriteLine(running);
+        return 0;
+    }
+
+    // Otherwise one line and exit code 1 as well. The message of the server names the address.
     Console.Error.WriteLine(
         $"pusula: {exception.Message} Another program (perhaps another pusula) is using that port: stop it, or choose another port with --urls, for example --urls http://localhost:5191");
     return 1;

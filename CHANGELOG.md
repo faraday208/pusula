@@ -6,6 +6,13 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The downloaded file opens the page in the browser once it listens, so a double click on it is enough. Started again
+  while it runs, it opens the pusula that runs instead of stopping with "address already in use". `--no-browser` (or
+  `--Pusula:OpenBrowser false`) leaves the browser closed. It stays closed over SSH and in `dotnet run` unless
+  `--Pusula:OpenBrowser true` is given, and always on Linux without a desktop.
+
 ## [0.3.0] - 2026-10-12
 
 What changed since yesterday and since last week, and which Claude Code configuration a source is.

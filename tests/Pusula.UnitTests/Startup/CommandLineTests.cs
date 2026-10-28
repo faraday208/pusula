@@ -159,6 +159,78 @@ public sealed class CommandLineTests
         built["Logging:LogLevel:Pusula.Browse"].ShouldBe("Debug");
     }
 
+    // ---- --no-browser: taken out of the host arguments, made the Pusula:OpenBrowser setting -------------------------
+
+    [Fact]
+    public void Parse_NoBrowserOption_IsTakenOutOfTheHostArguments()
+    {
+        CommandLine commandLine = CommandLine.Parse(["/first", "--no-browser", "--urls", "http://localhost:1"]);
+
+        commandLine.Roots.ShouldBe(["/first"]);
+        commandLine.HostArguments.ShouldBe(["--urls", "http://localhost:1"]);
+        commandLine.NoBrowser.ShouldBeTrue();
+        commandLine.FindMisplacedFolderError().ShouldBeNull();
+    }
+
+    // Left to the host, it would take the option after it for its value: --urls would be lost.
+    [Fact]
+    public void Parse_NoBrowserOptionBeforeAnotherOption_WouldSwallowItInTheHostCommandLineProvider()
+    {
+        string[] args = ["--no-browser", "--urls", "http://localhost:1"];
+
+        new ConfigurationBuilder().AddCommandLine(args).Build()["urls"].ShouldBeNull();
+        new ConfigurationBuilder().AddCommandLine(CommandLine.Parse(args).HostArguments).Build()["urls"].ShouldBe("http://localhost:1");
+    }
+
+    [Fact]
+    public void Parse_NoBrowserOptionLast_IsTakenOut()
+    {
+        CommandLine commandLine = CommandLine.Parse(["--urls", "http://localhost:1", "--no-browser"]);
+
+        commandLine.HostArguments.ShouldBe(["--urls", "http://localhost:1"]);
+        commandLine.NoBrowser.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("--no-browsers")]
+    [InlineData("-no-browser")]
+    [InlineData("--Pusula:OpenBrowser=false")]
+    public void Parse_OtherArgumentsWithTheWordInThem_AreNotTheNoBrowserOption(string argument)
+    {
+        CommandLine commandLine = CommandLine.Parse([argument]);
+
+        commandLine.NoBrowser.ShouldBeFalse();
+        commandLine.HostArguments.ShouldBe([argument]);
+    }
+
+    // A folder after it is still a folder after the options.
+    [Fact]
+    public void FindMisplacedFolderError_FolderAfterTheNoBrowserOption_IsReported() =>
+        CommandLine.Parse(["--no-browser", "/notes"]).FindMisplacedFolderError().ShouldBe(MisplacedFolder + "/notes");
+
+    [Fact]
+    public void AddNoBrowserTo_OptionGiven_WinsOverTheSettings()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Pusula:OpenBrowser"] = "true" })
+            .AddCommandLine(["--Pusula:OpenBrowser=true"]);
+
+        CommandLine.Parse(["/first", "--no-browser"]).AddNoBrowserTo(configuration);
+
+        configuration.Build().GetSection("Pusula").Get<PusulaOptions>()!.OpenBrowser.ShouldBe(false);
+    }
+
+    [Fact]
+    public void AddNoBrowserTo_OptionNotGiven_LeavesTheConfigurationAlone()
+    {
+        var configuration = new ConfigurationBuilder();
+
+        CommandLine.Parse(["/first"]).AddNoBrowserTo(configuration);
+
+        configuration.Sources.ShouldBeEmpty();
+        configuration.Build().GetSection("Pusula").Get<PusulaOptions>().ShouldBeNull();
+    }
+
     // ---- WantsVersion: pusula --version, answered before anything else -----------------------------------------
 
     [Fact]

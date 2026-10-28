@@ -5,11 +5,18 @@ namespace Pusula.Startup;
 /// belong to the ASP.NET Core host (<c>--urls</c>, <c>--Pusula:AllowedHosts</c>, ...).
 /// </summary>
 /// <param name="Roots">The folders: every argument at the start that is not empty and does not start with <c>-</c>. Empty when there is none.</param>
-/// <param name="HostArguments">The remaining arguments, in their original order.</param>
-internal sealed record CommandLine(string[] Roots, string[] HostArguments)
+/// <param name="HostArguments">The remaining arguments, in their original order, without <see cref="NoBrowserOption"/>.</param>
+/// <param name="NoBrowser">Whether <see cref="NoBrowserOption"/> was given.</param>
+internal sealed record CommandLine(string[] Roots, string[] HostArguments, bool NoBrowser = false)
 {
     /// <summary>The option that asks for the version: <c>pusula --version</c>.</summary>
     internal const string VersionOption = "--version";
+
+    /// <summary>
+    /// The option that leaves the browser closed: <c>pusula --no-browser</c>, the same as <c>--Pusula:OpenBrowser false</c>.
+    /// It is taken out of the host arguments: the host's command-line provider would take the argument after it for its value.
+    /// </summary>
+    internal const string NoBrowserOption = "--no-browser";
 
     /// <summary>
     /// Whether the command line asks for the version: <see cref="VersionOption"/> is among the host arguments, whatever
@@ -35,7 +42,8 @@ internal sealed record CommandLine(string[] Roots, string[] HostArguments)
             count++;
         }
 
-        return new CommandLine(args[..count], args[count..]);
+        string[] rest = args[count..];
+        return new CommandLine(args[..count], [.. rest.Where(static argument => argument != NoBrowserOption)], rest.Contains(NoBrowserOption));
     }
 
     /// <summary>
@@ -49,10 +57,11 @@ internal sealed record CommandLine(string[] Roots, string[] HostArguments)
     /// <returns>The line to print for the first such argument; null when there is none.</returns>
     public string? FindMisplacedFolderError()
     {
-        for (int index = 1; index < HostArguments.Length; index++)
+        // The first one too: it is an option, unless --no-browser stood before it and was taken out.
+        for (int index = 0; index < HostArguments.Length; index++)
         {
             string argument = HostArguments[index];
-            string before = HostArguments[index - 1];
+            string before = index == 0 ? string.Empty : HostArguments[index - 1];
             bool isOptionOrSetting = argument.Length == 0 || argument[0] == '-' || argument.Contains('=', StringComparison.Ordinal);
             bool isValueOfTheOptionBefore = before.Length > 0 && before[0] == '-' && !before.Contains('=', StringComparison.Ordinal);
             if (!isOptionOrSetting && !isValueOfTheOptionBefore)
@@ -100,6 +109,19 @@ internal sealed record CommandLine(string[] Roots, string[] HostArguments)
         {
             configuration.AddInMemoryCollection(Roots.Select((root, index) =>
                 new KeyValuePair<string, string?>($"{PusulaOptions.RootsKey}:{index}", root)));
+        }
+    }
+
+    /// <summary>
+    /// Makes <see cref="NoBrowserOption"/> the <c>Pusula:OpenBrowser</c> setting (<c>false</c>), as the last (highest
+    /// priority) source. Does nothing when it was not given.
+    /// </summary>
+    /// <param name="configuration">The application configuration.</param>
+    public void AddNoBrowserTo(IConfigurationBuilder configuration)
+    {
+        if (NoBrowser)
+        {
+            configuration.AddInMemoryCollection([new KeyValuePair<string, string?>(PusulaOptions.OpenBrowserKey, "false")]);
         }
     }
 }

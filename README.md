@@ -45,8 +45,10 @@ mv pusula-*-linux-x64 pusula && chmod +x pusula   # on a Mac the file ends in os
 ./pusula                                         # or your list of sources
 ```
 
-On Windows run `pusula-…-win-x64.exe` in a terminal, with the same arguments. Then open <http://localhost:5190>.
-Each release lists the SHA-256 of its files in `SHA256SUMS.txt`.
+On Windows double-click `pusula-…-win-x64.exe`, or run it in a terminal with the same arguments. pusula opens
+<http://localhost:5190> in your browser; closing its window (or Ctrl+C) stops it. Started again while it runs, it opens
+the one that runs. `--no-browser` leaves the browser closed; over SSH, or on Linux without a desktop, it stays closed
+anyway. Each release lists the SHA-256 of its files in `SHA256SUMS.txt`.
 
 The files are not signed yet, so the first start needs one more step:
 

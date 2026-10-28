@@ -46,6 +46,15 @@ internal sealed class PusulaOptions
     /// </summary>
     public bool AllowRemoteEdit { get; set; }
 
+    /// <summary>Configuration key of <see cref="OpenBrowser"/>, which <c>--no-browser</c> sets to <c>false</c>.</summary>
+    internal const string OpenBrowserKey = SectionName + ":OpenBrowser";
+
+    /// <summary>
+    /// Whether the page is opened in the browser once the server listens (and a pusula that already holds the port is
+    /// opened instead of stopping with an error). Unset, it is opened outside Development only; see <c>Browser.ShouldOpen</c>.
+    /// </summary>
+    public bool? OpenBrowser { get; set; }
+
     /// <summary>The names in <see cref="AllowedHosts"/>: trimmed, without empty entries.</summary>
     public string[] ParseAllowedHosts() =>
         AllowedHosts?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];

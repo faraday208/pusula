@@ -16,6 +16,7 @@ dotnet run --project src/Pusula                            # sources from ~/.con
 dotnet run --project src/Pusula -- ~/.claude ~/notes       # only these folders
 dotnet run --project src/Pusula -- "$PWD/samples/claude" "$PWD/samples/vault"   # synthetic demo
 dotnet run --project src/Pusula -- --version                # prints the version (also on the Sources page)
+dotnet run --project src/Pusula -- --Pusula:OpenBrowser true   # opens the browser as the download does (off in Development)
 dotnet run --project src/Pusula -- --urls http://<private-network-IP>:5190 --Pusula:AllowRemoteEdit true
 dotnet publish src/Pusula -c Release -r linux-x64 -o publish   # the single-file download (also win-x64, linux-arm64, osx-arm64)
 node tools/smoke-test.mjs publish/pusula                        # starts it from another folder and checks page, files and API

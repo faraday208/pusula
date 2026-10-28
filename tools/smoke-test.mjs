@@ -24,7 +24,8 @@ mkdirSync(notes);
 writeFileSync(join(notes, 'Note.md'), '# Note\n');
 
 const startedAt = Date.now();
-const server = spawn(resolve(binary), [notes], { cwd: folder, stdio: ['ignore', 'pipe', 'pipe'] });
+// --no-browser: the machines it runs on have no one to look at the page (a person's start opens it).
+const server = spawn(resolve(binary), [notes, '--no-browser'], { cwd: folder, stdio: ['ignore', 'pipe', 'pipe'] });
 const exited = new Promise(done => server.once('exit', done));
 let output = '';
 server.stdout.on('data', chunk => { output += chunk; });
