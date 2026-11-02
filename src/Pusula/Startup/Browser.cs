@@ -1,6 +1,9 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Buffers.Text;
 using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace Pusula.Startup;
@@ -15,8 +18,8 @@ internal static class Browser
     /// <summary>How long the pusula that may hold the port has to answer.</summary>
     internal static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
 
-    /// <summary>How much of the answer is read: the list of sources of a pusula is a few KB; whatever holds the port may send more.</summary>
-    internal const int ProbeMaxBytes = 64 * 1024;
+    /// <summary>How much of the answer is read: the proof of a pusula is under 100 bytes; whatever holds the port may send more.</summary>
+    internal const int ProbeMaxBytes = 4 * 1024;
 
     /// <summary>
     /// Whether to open the browser. <paramref name="setting"/> (<c>Pusula:OpenBrowser</c>) decides when it is set; unset,
@@ -77,12 +80,12 @@ internal static class Browser
     }
 
     /// <summary>
-    /// What the entry point says when the port is taken: when the address answers as a pusula, it is opened in the browser
+    /// What the entry point says when the port is taken: when a pusula of the same user answers at the address, it is opened in the browser
     /// and this is the line to print (and pusula ends with exit code 0, as the page the person wanted is open). Null when
     /// the address is not known or what holds it is not a pusula: then the port is in use by another program.
     /// </summary>
     /// <param name="urls">The <c>urls</c> setting of the host: addresses separated by <c>;</c>.</param>
-    /// <param name="isPusula">Tells whether a pusula answers at an address; <see cref="IsPusula(string)"/> in the application.</param>
+    /// <param name="isPusula">Tells whether a pusula of the same user answers at an address; <see cref="IsPusula(string, string)"/> in the application.</param>
     /// <param name="open">Opens an address in the browser and tells whether that worked; <see cref="Open(string)"/> in the application.</param>
     public static string? AlreadyRunning(string? urls, Func<string, bool> isPusula, Func<string, bool> open)
     {
@@ -100,31 +103,51 @@ internal static class Browser
             : $"pusula: already running at {page}; open that address in your browser.";
     }
 
-    /// <summary>Whether a pusula answers at an address: <c>GET api/sources</c> there gives its list of sources and its version.</summary>
+    /// <summary>
+    /// Whether a pusula of the same user answers at an address: it has to prove it (see <see cref="InstanceKey"/>). The key is read
+    /// first (never written: that is for the pusula that opens the browser); without a trusted key nothing is asked. Then a fresh
+    /// challenge goes to <c>GET api/instance</c>, and the proof has to be the one for the endpoint that the connection really went to.
+    /// What only looks like a pusula, whatever it answers, is not one.
+    /// </summary>
     /// <param name="address">The address of the page, such as <c>http://localhost:5190/</c>.</param>
-    public static bool IsPusula(string address)
+    /// <param name="state">The state directory (<see cref="UserDirectories.State"/>) the key is in.</param>
+    public static bool IsPusula(string address, string state)
     {
         // No proxy: a proxy of the environment would answer for localhost, or send the request elsewhere. No redirect: the
-        // answer that counts is the one of the address itself.
-        using var handler = new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false };
-        return IsPusulaAsync(address, handler, ProbeTimeout).GetAwaiter().GetResult();
+        // answer that counts is the one of the address itself. The socket is connected here, so that the endpoint that the
+        // proof is checked against is the one the connection went to, not one that a name or a header says.
+        var connection = new RecordedConnection();
+        using var handler = new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false, ConnectCallback = connection.ConnectAsync };
+        return IsPusulaAsync(address, state, handler, () => (connection.First, connection.Count), ProbeTimeout).GetAwaiter().GetResult();
     }
 
-    /// <summary>The request of <see cref="IsPusula(string)"/>, through a given handler and with a given time to answer.</summary>
-    internal static async Task<bool> IsPusulaAsync(string address, HttpMessageHandler handler, TimeSpan timeout)
+    /// <summary>The request of <see cref="IsPusula(string, string)"/>, through a given handler and with a given time to answer.</summary>
+    /// <param name="address">The address of the page.</param>
+    /// <param name="state">The state directory the key is in.</param>
+    /// <param name="handler">Sends the request.</param>
+    /// <param name="connectedTo">The first endpoint that the handler connected to (null when it did not: then nothing can be proved) and how many connections it made.</param>
+    /// <param name="timeout">The time the whole probe has.</param>
+    internal static async Task<bool> IsPusulaAsync(string address, string state, HttpMessageHandler handler, Func<(IPEndPoint? First, int Count)> connectedTo, TimeSpan timeout)
     {
+        byte[]? key = InstanceKey.Read(state);
+        if (key is null)
+        {
+            return false;
+        }
+
+        string challenge = InstanceKey.NewChallenge();
         using var client = new HttpClient(handler, disposeHandler: false) { Timeout = timeout };
         using var deadline = new CancellationTokenSource(timeout);
         try
         {
             using HttpResponseMessage response = await client.GetAsync(
-                new Uri(new Uri(address), "api/sources"), HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
+                new Uri(new Uri(address), "api/instance?challenge=" + challenge), HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 return false;
             }
 
-            // At most ProbeMaxBytes, within the same time: an answer that is longer is not the list of a pusula.
+            // At most ProbeMaxBytes, within the same time: an answer that is longer is not the proof of a pusula.
             await using Stream body = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
             byte[] buffer = new byte[ProbeMaxBytes + 1];
             int read = 0;
@@ -141,13 +164,66 @@ internal static class Browser
 
             using JsonDocument json = JsonDocument.Parse(buffer.AsMemory(0, read));
             JsonElement root = json.RootElement;
-            return root.ValueKind == JsonValueKind.Object
-                && root.TryGetProperty("sources", out JsonElement sources) && sources.ValueKind == JsonValueKind.Array
-                && root.TryGetProperty("version", out JsonElement version) && version.ValueKind == JsonValueKind.String;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("proof", out JsonElement proof) || proof.ValueKind != JsonValueKind.String
+                || connectedTo() is not ({ } endpoint, var connections))
+            {
+                return false;
+            }
+
+            // The proof is worth something only for the one connection to the address that was asked: a second connection means that the
+            // request was sent on (a redirect), and the endpoint has to be the port of the page (a proof for another port is not for it).
+            if (connections != 1 || endpoint.Port != new Uri(address).Port)
+            {
+                return false;
+            }
+
+            Span<byte> given = stackalloc byte[HMACSHA256.HashSizeInBytes];
+            string text = proof.GetString()!;
+            if (!Base64Url.IsValid(text) || !Base64Url.TryDecodeFromChars(text, given, out int written) || written != given.Length)
+            {
+                return false;
+            }
+
+            byte[] expected = InstanceKey.Proof(key, challenge, InstanceKey.EndpointOf(endpoint.Address, endpoint.Port));
+            return CryptographicOperations.FixedTimeEquals(given, expected);
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JsonException or IOException)
         {
             return false;
+        }
+    }
+
+    /// <summary>Connects like the handler does itself, remembers the first endpoint that it connected to and counts the connections.</summary>
+    internal sealed class RecordedConnection
+    {
+        private IPEndPoint? _first;
+        private int _count;
+
+        /// <summary>The endpoint of the first connection (an IPv4 address written as IPv6 is the IPv4 one); null when there was none.</summary>
+        public IPEndPoint? First => Volatile.Read(ref _first);
+
+        /// <summary>How many connections were made.</summary>
+        public int Count => Volatile.Read(ref _count);
+
+        public async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+        {
+            var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(context.DnsEndPoint, cancellationToken).ConfigureAwait(false);
+                if (Interlocked.Increment(ref _count) == 1)
+                {
+                    Volatile.Write(ref _first, (IPEndPoint?)socket.RemoteEndPoint);
+                }
+
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
         }
     }
 

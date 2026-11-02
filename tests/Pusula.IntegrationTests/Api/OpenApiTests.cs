@@ -33,7 +33,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         paths.PropertyNames().ShouldBe(
         [
             "/api/sources", "/api/sources/{id}", "/api/sources/{source}/tree", "/api/sources/{source}/file", "/api/sources/{source}/overview",
-            "/api/sources/{source}/changes", "/api/sources/{source}/events", "/api/browse", "/api/browse/found",
+            "/api/sources/{source}/changes", "/api/sources/{source}/events", "/api/browse", "/api/browse/found", "/api/instance",
         ], ignoreOrder: true);
         paths.GetProperty("/api/sources").PropertyNames().ShouldBe(["get", "post"], ignoreOrder: true);
         paths.GetProperty("/api/sources/{id}").PropertyNames().ShouldBe(["delete"]);
@@ -50,6 +50,28 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         paths.GetProperty("/api/sources/{source}/events").GetProperty("get").GetProperty("responses").GetProperty("200").GetProperty("content")
             .TryGetProperty("text/event-stream", out _).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetOpenApiDocument_InstanceEndpoint_DocumentsTheChallengeTheProofAndTheProblems()
+    {
+        using JsonDocument json = await fixture.Client.GetJsonAsync("/openapi/v1.json");
+        JsonElement get = json.RootElement.GetProperty("paths").GetProperty("/api/instance").GetProperty("get");
+
+        get.GetProperty("parameters").EnumerateArray().Select(parameter => $"{parameter.GetProperty("name").GetString()}:{parameter.GetProperty("in").GetString()}")
+            .ShouldBe(["challenge:query"]);
+        get.GetProperty("responses").PropertyNames().ShouldBe(["200", "400", "403", "404"], ignoreOrder: true);
+        get.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetRawText().ShouldContain("InstanceProofResponse");
+        foreach (string status in new[] { "400", "403", "404" })
+        {
+            get.GetProperty("responses").GetProperty(status).GetProperty("content").TryGetProperty("application/problem+json", out _).ShouldBeTrue(status);
+        }
+
+        string description = get.GetProperty("description").GetString()!;
+        foreach (string text in new[] { "instance-key", "HMAC-SHA256", "pusula-instance-proof-v1", "InvalidChallenge", "Remote", "NoKey", "Pusula:AllowRemoteEdit", "never cached" })
+        {
+            description.ShouldContain(text);
+        }
     }
 
     [Fact]

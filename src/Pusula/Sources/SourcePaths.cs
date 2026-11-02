@@ -23,4 +23,26 @@ internal static class SourcePaths
     /// <param name="right">Another full path.</param>
     public static bool Same(string left, string right) =>
         string.Equals(Path.TrimEndingDirectorySeparator(left), Path.TrimEndingDirectorySeparator(right), PathComparison.Current);
+
+    /// <summary>
+    /// Whether a folder is a folder that is shown, or inside one: compared as full paths, the way the platform compares paths.
+    /// pusula never writes into such a folder.
+    /// </summary>
+    /// <param name="folder">The folder pusula would write into.</param>
+    /// <param name="shownRoots">The folders of all sources.</param>
+    public static bool IsInside(string folder, IReadOnlyCollection<string> shownRoots)
+    {
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+        foreach (string shownRoot in shownRoots)
+        {
+            string shown = Path.TrimEndingDirectorySeparator(Path.GetFullPath(shownRoot));
+            string below = Path.EndsInDirectorySeparator(shown) ? shown : shown + Path.DirectorySeparatorChar;
+            if (Same(full, shown) || full.StartsWith(below, PathComparison.Current))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

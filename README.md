@@ -47,7 +47,8 @@ mv pusula-*-linux-x64 pusula && chmod +x pusula   # on a Mac the file ends in os
 
 On Windows double-click `pusula-…-win-x64.exe`, or run it in a terminal with the same arguments. pusula opens
 <http://localhost:5190> in your browser; closing its window (or Ctrl+C) stops it. Started again while it runs, it opens
-the one that runs. `--no-browser` leaves the browser closed; over SSH, or on Linux without a desktop, it stays closed
+the one that runs, but only if it proves to be a pusula of yours (see *Privacy and safety*); otherwise it stops with
+"port in use". `--no-browser` leaves the browser closed; over SSH, or on Linux without a desktop, it stays closed
 anyway. Each release lists the SHA-256 of its files in `SHA256SUMS.txt`.
 
 The files are not signed yet, so the first start needs one more step:
@@ -126,7 +127,9 @@ browse your folders, whatever the setting, and the server answers only to IP add
   **What changed** one small summary of a folder a day (the tokens of each file and the broken links; about 30 KB for
   300 files), taken the first time its overview is opened that day. The summaries are in `~/.local/state/pusula/` on
   Linux and macOS (`$XDG_STATE_HOME/pusula/` when that is set) and in `%LOCALAPPDATA%\pusula\` on Windows; a week of them
-  is kept, and deleting the folder forgets them.
+  is kept, and deleting the folder forgets them. The same folder holds `instance-key`, a random key that only you can read,
+  made by a pusula that opens the browser: a second pusula uses it to check that what holds the port is a pusula of
+  yours before it opens that page.
 - **Only `.md` files are indexed and served**; `settings.json`, credentials and other files never leave the server.
 - **Recognizing note folders reads a little of your notes.** To tell a folder of notes that has no `.obsidian/` folder,
   **Choose folder…** reads the first few kilobytes of some of its notes (at most 20 per folder) and only looks for a

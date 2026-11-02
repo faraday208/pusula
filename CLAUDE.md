@@ -43,8 +43,9 @@ from the section of `CHANGELOG.md` for that version.
 
 ## Rules
 
-- **Read-only.** Never write to a folder that is being shown. pusula writes only files of its own: `sources.json`, and the
-  daily summaries of `History/` in its state folder (`~/.local/state/pusula/`, `%LOCALAPPDATA%\pusula\`).
+- **Read-only.** Never write to a folder that is being shown. pusula writes only files of its own: `sources.json`, the
+  daily summaries of `History/` and the instance key (`instance-key`, the proof for a second pusula; `Startup/InstanceKey.cs`)
+  in its state folder (`~/.local/state/pusula/`, `%LOCALAPPDATA%\pusula\`).
 - **The UI talks to the server only through the JSON API.** The server never renders HTML; the UI never sees the file system.
 - **Only `.md` files are indexed and served.** `/api/sources/{id}/file` looks paths up in the index, never on disk.
 - **Changing sources and browsing folders** is allowed from the same machine only (loopback or the server's own

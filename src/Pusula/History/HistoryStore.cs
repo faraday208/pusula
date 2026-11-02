@@ -117,7 +117,7 @@ internal sealed partial class HistoryStore(UserDirectories directories, TimeProv
             return (HistoryState.Kept, null);
         }
 
-        if (IsInside(folder, shownRoots))
+        if (SourcePaths.IsInside(folder, shownRoots))
         {
             return (HistoryState.InsideSource, null);
         }
@@ -159,23 +159,6 @@ internal sealed partial class HistoryStore(UserDirectories directories, TimeProv
         }
 
         return [.. read.Days];
-    }
-
-    // Whether the folder is a folder that is shown, or inside one: compared as full paths, the way the platform compares paths.
-    private static bool IsInside(string folder, IReadOnlyCollection<string> shownRoots)
-    {
-        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
-        foreach (string shownRoot in shownRoots)
-        {
-            string shown = Path.TrimEndingDirectorySeparator(Path.GetFullPath(shownRoot));
-            string below = Path.EndsInDirectorySeparator(shown) ? shown : shown + Path.DirectorySeparatorChar;
-            if (SourcePaths.Same(full, shown) || full.StartsWith(below, PathComparison.Current))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     // What is known of one source. Only used with a lock on the object itself.

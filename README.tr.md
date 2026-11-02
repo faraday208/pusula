@@ -47,7 +47,8 @@ mv pusula-*-linux-x64 pusula && chmod +x pusula   # Mac'te dosyanın sonu osx-ar
 
 Windows'ta `pusula-…-win-x64.exe`'ye çift tıkla ya da bir terminalde aynı argümanlarla çalıştır. pusula
 <http://localhost:5190> adresini tarayıcında açar; penceresini kapatınca (ya da Ctrl+C) durur. Çalışırken yeniden
-başlatılırsa çalışanı açar. `--no-browser` tarayıcıyı kapalı bırakır; SSH üzerinden ya da masaüstü olmayan bir Linux'ta
+başlatılırsa çalışanı açar, ama yalnız senin pusulan olduğunu kanıtlarsa (bkz. *Gizlilik ve güvenlik*); yoksa "port
+kullanımda" diye durur. `--no-browser` tarayıcıyı kapalı bırakır; SSH üzerinden ya da masaüstü olmayan bir Linux'ta
 zaten açılmaz. Her sürüm dosyalarının SHA-256 özetlerini `SHA256SUMS.txt`'de verir.
 
 Dosyalar henüz imzalı değil, bu yüzden ilk açılışta bir adım daha gerekir:
@@ -125,7 +126,9 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
   **Ne değişti** için her klasörün günde bir küçük özeti (dosya başına token ve kırık bağlar; 300 dosya için yaklaşık
   30 KB). Özet, klasörün genel bakışı o gün ilk açıldığında alınır. Özetler Linux ve macOS'ta `~/.local/state/pusula/`
   (`$XDG_STATE_HOME` tanımlıysa `$XDG_STATE_HOME/pusula/`), Windows'ta `%LOCALAPPDATA%\pusula\` içinde durur; bir
-  haftalığı saklanır, klasörü silersen hepsi unutulur.
+  haftalığı saklanır, klasörü silersen hepsi unutulur. Aynı klasörde `instance-key` durur: tarayıcıyı açan bir pusulanın yaptığı, yalnız
+  senin okuyabildiğin rastgele bir anahtar; ikinci pusula, portu tutanın senin pusulan olduğunu bununla doğrular, sonra
+  o sayfayı açar.
 - **Yalnız `.md` dosyaları indekslenir ve sunulur**; `settings.json`, kimlik bilgileri ve öteki dosyalar sunucudan çıkmaz.
 - **Not klasörlerini tanımak notlarının küçük bir kısmını okur.** `.obsidian/` klasörü olmayan bir not klasörünü ayırt
   etmek için **Klasör seç…** notlarından bazılarının (klasör başına en çok 20) ilk birkaç kilobaytını okur ve yalnız

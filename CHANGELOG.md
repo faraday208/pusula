@@ -9,7 +9,9 @@ All notable changes to pusula are listed here. The format follows
 ### Added
 
 - The downloaded file opens the page in the browser once it listens, so a double click on it is enough. Started again
-  while it runs, it opens the pusula that runs instead of stopping with "address already in use". `--no-browser` (or
+  while it runs, it opens the pusula that runs instead of stopping with "address already in use", but only a pusula of
+  the same user: it proves itself with a random key in pusula's state folder (`instance-key`, readable by that user
+  only, made by a pusula that opens the browser); anything else on the port keeps the "port in use" error. `--no-browser` (or
   `--Pusula:OpenBrowser false`) leaves the browser closed. It stays closed over SSH and in `dotnet run` unless
   `--Pusula:OpenBrowser true` is given, and always on Linux without a desktop.
 

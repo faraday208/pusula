@@ -1,6 +1,9 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pusula.Startup;
+using Pusula.UnitTests.Support;
 using Shouldly;
 using Xunit;
 
@@ -163,101 +166,280 @@ public sealed class BrowserTests
     public void AlreadyRunning_NoAddressKnown_IsNullAndAsksNothing(string? urls) =>
         Browser.AlreadyRunning(urls, static _ => throw new InvalidOperationException("Nothing is to be asked."), static _ => true).ShouldBeNull();
 
-    // ---- IsPusulaAsync: what answers at the address ----------------------------------------------------------------
+    // ---- IsPusulaAsync: what answers at the address has to prove it -------------------------------------------------
 
     private const string Page = "http://localhost:5190/";
+    private static readonly IPEndPoint Local = new(IPAddress.Loopback, 5190);
+    private static readonly TimeSpan Plenty = TimeSpan.FromSeconds(5);
+
+    // A state directory with the key that a pusula that opens the browser has made; null state: no key.
+    private static (TempDirectory State, byte[] Key) Keyed()
+    {
+        var state = new TempDirectory();
+        InstanceKey.EnsureExists(state.Path, [], NullLogger.Instance).ShouldBeTrue();
+        return (state, InstanceKey.Read(state.Path)!);
+    }
+
+    private static string ProofFor(byte[] key, HttpRequestMessage request, IPEndPoint endpoint)
+    {
+        string challenge = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query)["challenge"]!;
+        return Convert.ToBase64String(InstanceKey.Proof(key, challenge, InstanceKey.EndpointOf(endpoint.Address, endpoint.Port)))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
 
     [Fact]
-    public async Task IsPusulaAsync_ListOfSourcesWithAVersion_IsTrue()
+    public async Task IsPusulaAsync_TheRightProofForTheEndpointItConnectedTo_IsTrue()
     {
-        using var handler = new Answer(HttpStatusCode.OK, """{ "sources": [], "canEdit": true, "machine": "pc", "version": "0.3.0" }""");
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, Local)}}" }""");
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromSeconds(5))).ShouldBeTrue();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeTrue();
 
-        handler.Asked.ShouldBe(["http://localhost:5190/api/sources"]);
+            handler.Asked.Count.ShouldBe(1);
+            handler.Asked[0].ShouldStartWith("http://localhost:5190/api/instance?challenge=");
+            InstanceKey.IsChallenge(handler.Asked[0]["http://localhost:5190/api/instance?challenge=".Length..]).ShouldBeTrue();
+        }
     }
 
+    // The connection of the application may be an IPv6 socket that carries an IPv4 address.
+    [Fact]
+    public async Task IsPusulaAsync_ConnectionThatWritesAnIPv4AddressAsIPv6_IsTheIPv4Endpoint()
+    {
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, Local)}}" }""");
+
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (new IPEndPoint(IPAddress.Loopback.MapToIPv6(), 5190), 1), Plenty)).ShouldBeTrue();
+        }
+    }
+
+    // Something that read no key: it cannot know the proof.
+    [Fact]
+    public async Task IsPusulaAsync_ProofOfAnotherKey_IsFalse()
+    {
+        (TempDirectory state, _) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(RandomNumberGenerator.GetBytes(32), request, Local)}}" }""");
+
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+        }
+    }
+
+    // A program on this port that passes the challenge on to the real pusula on another port: the proof it gets is for that endpoint.
     [Theory]
-    [InlineData("""{ "sources": [] }""")]
-    [InlineData("""{ "version": "0.3.0" }""")]
-    [InlineData("""{ "sources": {}, "version": "0.3.0" }""")]
-    [InlineData("""{ "sources": [], "version": 3 }""")]
-    [InlineData("""[ "sources", "version" ]""")]
+    [InlineData("127.0.0.1", 5191)]
+    [InlineData("127.0.0.2", 5190)]
+    [InlineData("::1", 5190)]
+    public async Task IsPusulaAsync_ProofOfAnotherEndpointRelayed_IsFalse(string address, int port)
+    {
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            var relayed = new IPEndPoint(IPAddress.Parse(address), port);
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, relayed)}}" }""");
+
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+        }
+    }
+
+    // The answer of a pusula that is older than the proof: the list of its sources.
+    [Theory]
+    [InlineData("""{ "sources": [], "canEdit": true, "machine": "pc", "version": "0.3.0" }""")]
+    [InlineData("""{ "proof": 3 }""")]
+    [InlineData("""{ "proof": null }""")]
+    [InlineData("""{ "proof": "" }""")]
+    [InlineData("""{ "proof": "not base64url !" }""")]
+    [InlineData("""{ "proof": "AAAA" }""")]
+    [InlineData("""[ "proof" ]""")]
     [InlineData("<html>another server</html>")]
     [InlineData("")]
-    public async Task IsPusulaAsync_AnswerThatIsNotTheListOfAPusula_IsFalse(string body)
+    public async Task IsPusulaAsync_AnswerThatIsNotAProof_IsFalse(string body)
     {
-        using var handler = new Answer(HttpStatusCode.OK, body);
+        (TempDirectory state, _) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(_ => body);
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromSeconds(5))).ShouldBeFalse();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+        }
     }
 
+    // A pusula that has no key (started without the browser) or is older than the endpoint answers 404 or 403.
     [Theory]
     [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Forbidden)]
     [InlineData(HttpStatusCode.BadRequest)]
     [InlineData(HttpStatusCode.InternalServerError)]
     public async Task IsPusulaAsync_StatusThatIsNotSuccess_IsFalse(HttpStatusCode status)
     {
-        using var handler = new Answer(status, """{ "sources": [], "version": "0.3.0" }""");
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, Local)}}" }""", status);
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromSeconds(5))).ShouldBeFalse();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+        }
     }
 
-    // The answer of the address itself counts: a redirect is not followed (the application's handler does not follow it either).
+    // A second connection means that the request was sent on (a redirect was followed), whatever the proof is.
     [Fact]
-    public async Task IsPusulaAsync_Redirect_IsFalse()
+    public async Task IsPusulaAsync_MoreThanOneConnection_IsFalse()
     {
-        using var handler = new Answer(HttpStatusCode.Found, """{ "sources": [], "version": "0.3.0" }""");
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, Local)}}" }""");
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromSeconds(5))).ShouldBeFalse();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 2), Plenty)).ShouldBeFalse();
+        }
     }
 
-    // Whatever holds the port may send more than the list of a pusula: it is not read into memory whole.
+    // The proof of a pusula on another port is not the proof of the page that was asked, even from a single connection.
+    [Fact]
+    public async Task IsPusulaAsync_ConnectedToAnotherPortThanThePage_IsFalse()
+    {
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            var other = new IPEndPoint(IPAddress.Loopback, 5191);
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, other)}}" }""");
+
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (other, 1), Plenty)).ShouldBeFalse();
+        }
+    }
+
+    // The connection was not recorded (the handler did not connect): there is no endpoint to check the proof against.
+    [Fact]
+    public async Task IsPusulaAsync_NoEndpointWasConnectedTo_IsFalse()
+    {
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, Local)}}" }""");
+
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (null, 1), Plenty)).ShouldBeFalse();
+        }
+    }
+
+    // Whatever holds the port may send more than a proof: it is not read into memory whole.
     [Fact]
     public async Task IsPusulaAsync_AnswerLongerThanTheLimit_IsFalse()
     {
-        string padding = new(' ', Browser.ProbeMaxBytes);
-        using var handler = new Answer(HttpStatusCode.OK, $$"""{ "sources": [], "version": "0.3.0" }{{padding}}""");
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request => $$"""{ "proof": "{{ProofFor(key, request, Local)}}" }""" + new string(' ', Browser.ProbeMaxBytes));
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromSeconds(5))).ShouldBeFalse();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+        }
     }
 
     [Fact]
     public async Task IsPusulaAsync_AnswerJustUnderTheLimit_IsRead()
     {
-        const string Json = """{ "sources": [], "version": "0.3.0" }""";
-        using var handler = new Answer(HttpStatusCode.OK, Json + new string(' ', Browser.ProbeMaxBytes - Json.Length));
+        (TempDirectory state, byte[] key) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(request =>
+            {
+                string json = $$"""{ "proof": "{{ProofFor(key, request, Local)}}" }""";
+                return json + new string(' ', Browser.ProbeMaxBytes - json.Length);
+            });
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromSeconds(5))).ShouldBeTrue();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeTrue();
+        }
     }
 
     [Fact]
     public async Task IsPusulaAsync_ConnectionThatFails_IsFalse()
     {
-        using var handler = new Answer(new HttpRequestException("refused"));
+        (TempDirectory state, _) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(new HttpRequestException("refused"));
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromSeconds(5))).ShouldBeFalse();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+        }
     }
 
     // A program that takes the connection and never answers (the port is held by something that is not a web server).
     [Fact]
     public async Task IsPusulaAsync_NoAnswerInTime_IsFalse()
     {
-        using var handler = new Answer(silent: true);
+        (TempDirectory state, _) = Keyed();
+        using (state)
+        {
+            using var handler = new Answer(silent: true);
 
-        (await Browser.IsPusulaAsync(Page, handler, TimeSpan.FromMilliseconds(100))).ShouldBeFalse();
+            (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), TimeSpan.FromMilliseconds(100))).ShouldBeFalse();
+        }
+    }
+
+    // Without a key nothing can be proved, and nothing is asked: the address is not even connected to.
+    [Fact]
+    public async Task IsPusulaAsync_NoKey_IsFalseAndSendsNoRequest()
+    {
+        using var state = new TempDirectory();
+        using var handler = new Answer(_ => throw new InvalidOperationException("Nothing is to be asked."));
+
+        (await Browser.IsPusulaAsync(Page, state.Path, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+        (await Browser.IsPusulaAsync(Page, string.Empty, handler, () => (Local, 1), Plenty)).ShouldBeFalse();
+
+        handler.Asked.ShouldBeEmpty();
     }
 
     // A real request to a port nothing listens on, the way the application asks.
     [Fact]
     public void IsPusula_NothingListens_IsFalse()
     {
-        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
+        (TempDirectory state, _) = Keyed();
+        using (state)
+        {
+            var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
 
-        Browser.IsPusula($"http://127.0.0.1:{port}/").ShouldBeFalse();
+            Browser.IsPusula($"http://127.0.0.1:{port}/", state.Path).ShouldBeFalse();
+        }
+    }
+
+    // Something that holds the port and answers with the list of sources of a pusula, the way a squatter would.
+    [Fact]
+    public async Task IsPusula_ASquatterThatAnswersLikeAPusulaOfAnOlderVersion_IsFalse()
+    {
+        (TempDirectory state, _) = Keyed();
+        using (state)
+        {
+            var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            try
+            {
+                int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                Task serving = ServeAsync(listener, """{ "sources": [], "version": "0.3.0" }""");
+
+                Browser.IsPusula($"http://127.0.0.1:{port}/", state.Path).ShouldBeFalse();
+                await serving;
+            }
+            finally
+            {
+                listener.Stop();
+            }
+        }
+    }
+
+    private static async Task ServeAsync(System.Net.Sockets.TcpListener listener, string body)
+    {
+        using System.Net.Sockets.TcpClient client = await listener.AcceptTcpClientAsync();
+        await using System.Net.Sockets.NetworkStream stream = client.GetStream();
+        var buffer = new byte[4096];
+        _ = await stream.ReadAsync(buffer);
+        byte[] answer = Encoding.UTF8.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}");
+        await stream.WriteAsync(answer);
     }
 
     // ---- StartInfo: how the browser is started ---------------------------------------------------------------------
@@ -284,18 +466,18 @@ public sealed class BrowserTests
         start.UseShellExecute.ShouldBeFalse();
     }
 
-    /// <summary>A handler that answers every request the same way, and remembers what was asked.</summary>
+    /// <summary>A handler that answers every request from what it asked, and remembers what was asked.</summary>
     private sealed class Answer : HttpMessageHandler
     {
         private readonly HttpStatusCode _status;
-        private readonly string _body = string.Empty;
+        private readonly Func<HttpRequestMessage, string>? _body;
         private readonly Exception? _failure;
         private readonly bool _silent;
 
-        public Answer(HttpStatusCode status, string body)
+        public Answer(Func<HttpRequestMessage, string> body, HttpStatusCode status = HttpStatusCode.OK)
         {
-            _status = status;
             _body = body;
+            _status = status;
         }
 
         public Answer(Exception failure) => _failure = failure;
@@ -317,7 +499,7 @@ public sealed class BrowserTests
                 await Task.Delay(Timeout.Infinite, cancellationToken);
             }
 
-            return new HttpResponseMessage(_status) { Content = new StringContent(_body, Encoding.UTF8, "application/json") };
+            return new HttpResponseMessage(_status) { Content = new StringContent(_body!(request), Encoding.UTF8, "application/json") };
         }
     }
 }

@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Pusula.Indexing;
 using Pusula.Links;
+using Pusula.Startup;
 
 namespace Pusula.History;
 
@@ -36,10 +37,6 @@ internal static class HistoryFile
 {
     /// <summary>The version of the format. A file of another version is not read, and is replaced by the next write.</summary>
     internal const int CurrentVersion = 1;
-
-    // Only the person the files belong to may read or change them: the history says which files a person has, and how big.
-    private const UnixFileMode PrivateFolder = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
-    private const UnixFileMode PrivateFile = UnixFileMode.UserRead | UnixFileMode.UserWrite;
 
     // The letters of a name stay what they are (no \u escapes for a ş), as in the sources file; the names of the properties are camelCase, the
     // names of the files (the keys of "files") stay as they are.
@@ -150,7 +147,7 @@ internal static class HistoryFile
         string temporary = Path.Join(folder, TemporaryNameOf(name));
         try
         {
-            using (var stream = new FileStream(temporary, NewFileOptions()))
+            using (var stream = new FileStream(temporary, PrivateStorage.NewFileOptions()))
             {
                 stream.Write(bytes);
             }
@@ -159,7 +156,7 @@ internal static class HistoryFile
         }
         catch
         {
-            TryDelete(temporary);
+            PrivateStorage.TryDelete(temporary);
             throw;
         }
     }
@@ -181,33 +178,10 @@ internal static class HistoryFile
         // A mode is the mode of the last folder of a path only, so the folder above (pusula) is made on its own, before the history folder.
         if (Path.GetDirectoryName(folder) is { } parent)
         {
-            Directory.CreateDirectory(parent, PrivateFolder);
+            PrivateStorage.CreateFolder(parent);
         }
 
-        Directory.CreateDirectory(folder, PrivateFolder);
-    }
-
-    private static FileStreamOptions NewFileOptions()
-    {
-        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
-        if (!OperatingSystem.IsWindows())
-        {
-            options.UnixCreateMode = PrivateFile;
-        }
-
-        return options;
-    }
-
-    private static void TryDelete(string file)
-    {
-        try
-        {
-            File.Delete(file);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // Best effort: the error that is being thrown is the one that matters.
-        }
+        PrivateStorage.CreateFolder(folder);
     }
 
     private static StoredDay ToStored(DailySummary day) => new(

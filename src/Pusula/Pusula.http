@@ -228,6 +228,14 @@ GET {{baseUrl}}/api/browse?path=~/no-such-folder
 GET {{baseUrl}}/api/browse
 Origin: http://evil.example
 
+### The proof that this server is a pusula of the user who runs it (what a second pusula asks when the port is taken). The challenge is the base64url of
+### 32 random bytes (43 characters); "proof" is the base64url of HMAC-SHA256(instance key, "pusula-instance-proof-v1\n" + challenge + "\n" + the endpoint
+### of the connection, such as 127.0.0.1:5190). Only from this machine, whatever Pusula:AllowRemoteEdit says; never cached.
+### 400 "InvalidChallenge" (missing or not 32 bytes in base64url), 403 "Remote" (another machine, or a forwarded request),
+### 404 "NoKey" (no instance key that can be trusted: this pusula does not open the browser, or has no state folder).
+GET {{baseUrl}}/api/instance?challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Accept: application/json
+
 ### The file tree of a source: every indexed Markdown file with its layer, load mode, tokens, broken links and orphan flag
 # "tokens" is the whole file, "everySessionTokens" only what every session loads; a directory node carries the sums below it.
 # A note of a vault or a plain Markdown folder has the layer Note, loads only on demand, and lists its "tags" (left out when it has none).

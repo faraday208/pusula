@@ -104,6 +104,9 @@ bool openBrowser = Browser.ShouldOpen(
 // The addresses to listen on, read now: after a start that failed, the settings are disposed with the services.
 string? urls = app.Configuration[WebHostDefaults.ServerUrlsKey];
 
+// The state folder, for the same reason: the proof that a pusula answers is read from the key in it.
+string stateFolder = app.Services.GetRequiredService<UserDirectories>().State;
+
 // Once the server listens, an address that other devices can reach is said on the error stream: there is no login. Then
 // the page is opened, so that the downloaded file started with a double click shows more than a console window.
 app.Lifetime.ApplicationStarted.Register(() =>
@@ -116,6 +119,13 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
     if (openBrowser && addresses is not null && Browser.PageAddress(addresses) is { } page)
     {
+        // A second pusula that finds the port taken opens this one only when it proves itself with the key of the state folder:
+        // this pusula opens the browser, so it is the one that makes the key (when there is none yet).
+        InstanceKey.EnsureExists(
+            stateFolder,
+            [.. app.Services.GetRequiredService<ISourceRegistry>().Sources.Select(source => source.Definition.Path)],
+            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Pusula.Startup.InstanceKey"));
+
         if (Browser.Open(page))
         {
             Console.WriteLine($"pusula: opened {page} in the browser (start with {CommandLine.NoBrowserOption} to leave it closed)");
@@ -148,6 +158,7 @@ app.UseRouting();
 
 app.MapOpenApi();
 app.MapHealthChecks("/health");
+app.MapInstance();
 
 // Everything about one source lives below /api/sources/{source}; the group finds the source for its endpoints.
 RouteGroupBuilder source = app.MapSources();
@@ -174,8 +185,8 @@ catch (FolderTooLargeException exception)
 catch (IOException exception) when (exception.InnerException is AddressInUseException)
 {
     // The address is taken, often by a pusula that is already running. A second double click on the downloaded file means
-    // "show me pusula": when the browser is to be opened and a pusula answers there, that one is opened, exit code 0.
-    if (openBrowser && Browser.AlreadyRunning(urls, Browser.IsPusula, Browser.Open) is { } running)
+    // "show me pusula": when the browser is to be opened and a pusula of the same user proves itself there, that one is opened, exit code 0.
+    if (openBrowser && Browser.AlreadyRunning(urls, page => Browser.IsPusula(page, stateFolder), Browser.Open) is { } running)
     {
         Console.WriteLine(running);
         return 0;
