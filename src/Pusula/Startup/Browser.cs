@@ -93,6 +93,21 @@ internal static class Browser
         ArgumentNullException.ThrowIfNull(open);
 
         string? page = urls is null ? null : PageAddress(urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return AlreadyRunningAt(page, isPusula, open);
+    }
+
+    /// <summary>
+    /// The same as <see cref="AlreadyRunning(string?, Func{string, bool}, Func{string, bool})"/> for a page address that is known
+    /// already, such as the one a running pusula recorded (<see cref="InstanceAddress"/>). Nothing is opened that does not prove itself.
+    /// </summary>
+    /// <param name="page">The address of the page; null when there is none.</param>
+    /// <param name="isPusula">Tells whether a pusula of the same user answers at an address.</param>
+    /// <param name="open">Opens an address in the browser and tells whether that worked.</param>
+    public static string? AlreadyRunningAt(string? page, Func<string, bool> isPusula, Func<string, bool> open)
+    {
+        ArgumentNullException.ThrowIfNull(isPusula);
+        ArgumentNullException.ThrowIfNull(open);
+
         if (page is null || !isPusula(page))
         {
             return null;

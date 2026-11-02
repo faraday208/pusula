@@ -19,6 +19,10 @@ using Pusula.Updates;
 // host's command-line provider would read an absolute path (which starts with '/') as an option.
 CommandLine commandLine = CommandLine.Parse(args);
 
+// A start by double click on Windows runs in a console window of its own, which closes with the program: an error that ends
+// pusula (or an exception that nothing handles) waits for Enter first, so that it can be read.
+ConsoleWindow.GuardUnhandledExceptions();
+
 // `pusula --version` is answered first: one line and exit code 0, with no folder looked at and no host built.
 if (commandLine.WantsVersion)
 {
@@ -31,16 +35,14 @@ if (commandLine.WantsVersion)
 string? misplacedFolder = commandLine.FindMisplacedFolderError();
 if (misplacedFolder is not null)
 {
-    Console.Error.WriteLine(misplacedFolder);
-    return 1;
+    return ConsoleWindow.Fail(misplacedFolder);
 }
 
 // A folder typed on the command line that does not exist is a usage error: one line and exit code 1, no stack trace.
 string? rootError = commandLine.FindRootError(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Directory.Exists);
 if (rootError is not null)
 {
-    Console.Error.WriteLine(rootError);
-    return 1;
+    return ConsoleWindow.Fail(rootError);
 }
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(commandLine.HostArguments);
@@ -51,6 +53,36 @@ builder.Configuration.Sources.Insert(0, BuiltInContent.Settings());
 
 commandLine.AddRootsTo(builder.Configuration);
 commandLine.AddNoBrowserTo(builder.Configuration);
+
+// Whether the page is opened in the browser: once the server listens, and when a pusula already holds the port.
+bool openBrowser = Browser.ShouldOpen(
+    builder.Configuration.GetValue<bool?>(PusulaOptions.OpenBrowserKey),
+    builder.Environment.IsDevelopment(),
+    OperatingSystem.IsWindows(),
+    OperatingSystem.IsMacOS(),
+    Environment.GetEnvironmentVariable);
+
+UserDirectories directories = UserDirectories.FromEnvironment();
+
+// The default address (http://localhost:5190) is not a choice, so it gives way; an address that was chosen never does.
+bool urlsAreDefault = DefaultUrls.IsDefault(Environment.GetEnvironmentVariable, ((IConfigurationRoot)builder.Configuration).Providers);
+
+// A second double click finds the pusula that runs by the address it recorded, even when that listens on another port than the
+// default. The address counts only when the program there proves itself with the key (Browser.IsPusula).
+// Only a start without folders on the command line looks (and records): one started with folders shows those, not the list.
+bool foldersOnCommandLine = commandLine.Roots.Length > 0;
+if (InstanceAddress.ShouldLookUp(openBrowser, urlsAreDefault, foldersOnCommandLine)
+    && Browser.AlreadyRunningAt(InstanceAddress.Read(directories.State), page => Browser.IsPusula(page, directories.State), Browser.Open) is { } found)
+{
+    Console.WriteLine(found);
+    return 0;
+}
+
+// When the port of the default is not free, any free one is used instead (set on the built app below, so that the settings keep
+// the default): a port that is held (a forward that left connections behind, another program) would otherwise stop pusula from
+// starting at all.
+string? fallbackUrls = DefaultUrls.Fallback(urlsAreDefault, builder.Configuration[WebHostDefaults.ServerUrlsKey], DefaultUrls.CanBind);
+int? busyPort = fallbackUrls is null ? null : DefaultUrls.PortOf(builder.Configuration[WebHostDefaults.ServerUrlsKey]);
 
 // A start that fails comes out of app.Run below, which says what went wrong in one line (or the runtime prints the
 // exception); the host's own error line about it would put the stack trace on the console first. Its critical lines stay.
@@ -66,7 +98,7 @@ builder.Services.AddHealthChecks();
 // default only outside Development does the endpoint answer it itself; in Development it throws, which comes out as a 500.
 builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = false);
 
-builder.Services.AddSingleton(UserDirectories.FromEnvironment());
+builder.Services.AddSingleton(directories);
 builder.Services.AddSingleton<IndexBuilder>();
 
 // The folder browser: what it lists and reads, the drives it searches, and the clock that tells how old a search is.
@@ -100,28 +132,25 @@ builder.Services.AddHostedService(services => services.GetRequiredService<Source
 
 WebApplication app = builder.Build();
 
+if (fallbackUrls is not null)
+{
+    app.Urls.Clear();
+    app.Urls.Add(fallbackUrls);
+}
+
 // The list of sources is read now, before the server starts: a sources file that cannot be used is a usage error
 // like a folder that does not exist (one line and exit code 1), and the settings are complete once the host is built.
 string? sourcesError = app.Services.GetRequiredService<SourceRegistry>().Load();
 if (sourcesError is not null)
 {
-    Console.Error.WriteLine(sourcesError);
-    return 1;
+    return ConsoleWindow.Fail(sourcesError);
 }
-
-// Whether the page is opened in the browser: once the server listens, and when a pusula already holds the port.
-bool openBrowser = Browser.ShouldOpen(
-    app.Services.GetRequiredService<IOptions<PusulaOptions>>().Value.OpenBrowser,
-    app.Environment.IsDevelopment(),
-    OperatingSystem.IsWindows(),
-    OperatingSystem.IsMacOS(),
-    Environment.GetEnvironmentVariable);
 
 // The addresses to listen on, read now: after a start that failed, the settings are disposed with the services.
 string? urls = app.Configuration[WebHostDefaults.ServerUrlsKey];
 
 // The state folder, for the same reason: the proof that a pusula answers is read from the key in it.
-string stateFolder = app.Services.GetRequiredService<UserDirectories>().State;
+string stateFolder = directories.State;
 
 // Once the server listens, an address that other devices can reach is said on the error stream: there is no login. Then
 // the page is opened, so that the downloaded file started with a double click shows more than a console window.
@@ -133,14 +162,24 @@ app.Lifetime.ApplicationStarted.Register(() =>
         Console.Error.WriteLine(warning);
     }
 
+    if (busyPort is { } busy && addresses is not null && Browser.PageAddress(addresses) is { } listening)
+    {
+        Console.WriteLine($"pusula: port {busy} is in use; listening on {listening} instead");
+    }
+
     if (openBrowser && addresses is not null && Browser.PageAddress(addresses) is { } page)
     {
         // A second pusula that finds the port taken opens this one only when it proves itself with the key of the state folder:
         // this pusula opens the browser, so it is the one that makes the key (when there is none yet).
-        InstanceKey.EnsureExists(
-            stateFolder,
-            [.. app.Services.GetRequiredService<ISourceRegistry>().Sources.Select(source => source.Definition.Path)],
-            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Pusula.Startup.InstanceKey"));
+        string[] shownRoots = [.. app.Services.GetRequiredService<ISourceRegistry>().Sources.Select(source => source.Definition.Path)];
+        ILoggerFactory loggers = app.Services.GetRequiredService<ILoggerFactory>();
+        bool hasKey = InstanceKey.EnsureExists(stateFolder, shownRoots, loggers.CreateLogger("Pusula.Startup.InstanceKey"));
+
+        // The address it opens is recorded next to the key (the newest pusula wins) and taken away when this one stops, if it is still ours.
+        if (hasKey && InstanceAddress.ShouldRecord(openBrowser, foldersOnCommandLine) && InstanceAddress.Write(stateFolder, page, shownRoots, loggers.CreateLogger("Pusula.Startup.InstanceAddress")))
+        {
+            app.Lifetime.ApplicationStopping.Register(() => InstanceAddress.DeleteIfOurs(stateFolder, page));
+        }
 
         if (Browser.Open(page))
         {
@@ -196,8 +235,7 @@ catch (FolderTooLargeException exception)
 {
     // A folder that was named on the command line (or in Pusula:Root) is more than is shown: a usage error like one that
     // does not exist, one line and exit code 1. A folder of a sources file only makes its source not available.
-    Console.Error.WriteLine($"pusula: {exception.Folder}: {exception.Message}");
-    return 1;
+    return ConsoleWindow.Fail($"pusula: {exception.Folder}: {exception.Message}");
 }
 catch (IOException exception) when (exception.InnerException is AddressInUseException)
 {
@@ -210,9 +248,8 @@ catch (IOException exception) when (exception.InnerException is AddressInUseExce
     }
 
     // Otherwise one line and exit code 1 as well. The message of the server names the address.
-    Console.Error.WriteLine(
+    return ConsoleWindow.Fail(
         $"pusula: {exception.Message} Another program (perhaps another pusula) is using that port: stop it, or choose another port with --urls, for example --urls http://localhost:5191");
-    return 1;
 }
 
 return 0;

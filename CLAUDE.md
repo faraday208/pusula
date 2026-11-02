@@ -19,7 +19,7 @@ dotnet run --project src/Pusula -- --version                # prints the version
 dotnet run --project src/Pusula -- --Pusula:OpenBrowser true   # opens the browser as the download does (off in Development)
 dotnet run --project src/Pusula -- --urls http://<private-network-IP>:5190 --Pusula:AllowRemoteEdit true
 dotnet publish src/Pusula -c Release -r linux-x64 -o publish   # the single-file download (also win-x64, linux-arm64, osx-arm64)
-node tools/smoke-test.mjs publish/pusula                        # starts it from another folder and checks page, files and API
+node tools/smoke-test.mjs publish/pusula                        # starts it from another folder and checks page, files and API (a busy 5190 is accepted when pusula says it fell back)
 ```
 
 Releases: a `v*` tag runs `.github/workflows/release.yml`, which builds the four files on their own platforms, tries each
@@ -45,7 +45,8 @@ from the section of `CHANGELOG.md` for that version.
 ## Rules
 
 - **Read-only.** Never write to a folder that is being shown. pusula writes only files of its own: `sources.json`, the
-  daily summaries of `History/` and the instance key (`instance-key`, the proof for a second pusula; `Startup/InstanceKey.cs`)
+  daily summaries of `History/`, the instance key (`instance-key`, the proof for a second pusula; `Startup/InstanceKey.cs`)
+  and the loopback address of the pusula that opened the browser without folders on the command line (`instance-address`, `Startup/InstanceAddress.cs`)
   in its state folder (`~/.local/state/pusula/`, `%LOCALAPPDATA%\pusula\`).
 - **The UI talks to the server only through the JSON API.** The server never renders HTML; the UI never sees the file system.
 - **One request to the internet:** the update check (`Updates/`) is the only one pusula makes, and tests never make it (`Pusula:CheckForUpdates false`).

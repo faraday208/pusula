@@ -47,9 +47,11 @@ mv pusula-*-linux-x64 pusula && chmod +x pusula   # on a Mac the file ends in os
 
 On Windows double-click `pusula-…-win-x64.exe`, or run it in a terminal with the same arguments. pusula opens
 <http://localhost:5190> in your browser; closing its window (or Ctrl+C) stops it. Started again while it runs, it opens
-the one that runs, but only if it proves to be a pusula of yours (see *Privacy and safety*); otherwise it stops with
-"port in use". `--no-browser` leaves the browser closed; over SSH, or on Linux without a desktop, it stays closed
-anyway. Each release lists the SHA-256 of its files in `SHA256SUMS.txt`.
+the one that runs, but only if it proves to be a pusula of yours (see *Privacy and safety*); otherwise, with `--urls`, it stops with
+"port in use". If port 5190 is taken, pusula uses a free port instead and says so; a second double click still finds
+the one that runs, if that was itself started by a double click (or without folders on the command line); otherwise a new one starts. On Windows the window stays open after an error, until you press Enter, so you can read it. With
+`--urls` the port you chose is never changed. `--no-browser` leaves the browser closed; over SSH, or on Linux without
+a desktop, it stays closed anyway. Each release lists the SHA-256 of its files in `SHA256SUMS.txt`.
 
 The files are not signed yet, so the first start needs one more step:
 
@@ -129,7 +131,7 @@ browse your folders, whatever the setting, and the server answers only to IP add
   Linux and macOS (`$XDG_STATE_HOME/pusula/` when that is set) and in `%LOCALAPPDATA%\pusula\` on Windows; a week of them
   is kept, and deleting the folder forgets them. The same folder holds `instance-key`, a random key that only you can read,
   made by a pusula that opens the browser: a second pusula uses it to check that what holds the port is a pusula of
-  yours before it opens that page.
+  yours before it opens that page. Next to it, `instance-address` holds the address that pusula opened (a loopback address, removed when that pusula stops; only a pusula started without folders on the command line records it), so that a second one finds it even on another port; it is never opened without the key's proof.
 - **Only `.md` files are indexed and served**; `settings.json`, credentials and other files never leave the server.
 - **Recognizing note folders reads a little of your notes.** To tell a folder of notes that has no `.obsidian/` folder,
   **Choose folder…** reads the first few kilobytes of some of its notes (at most 20 per folder) and only looks for a

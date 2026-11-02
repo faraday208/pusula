@@ -1,5 +1,5 @@
 // Starts a published pusula from a folder of its own, the way someone who downloaded it would, and checks what that
-// person gets: the default address (from the settings built into the program), the page, a file of the page and the API.
+// person gets: the default address (from the settings built into the program; or, when port 5190 is held, the fallback it announces), the page, a file of the page and the API.
 // The release workflow and CI run it on every platform the downloads are made for.
 //
 // Usage: node tools/smoke-test.mjs <path of the pusula binary>
@@ -9,7 +9,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-const expectedAddress = 'http://localhost:5190';
+import { checkAddress } from './smoke-address.mjs';
+
 const startTimeoutMs = 60_000;
 
 const binary = process.argv[2];
@@ -61,8 +62,10 @@ async function check(url, what, test) {
 try {
   const address = await listening();
   console.log(`listening on ${address} after ${Date.now() - startedAt} ms`);
-  if (address !== expectedAddress) {
-    throw new Error(`listens on ${address}, not on ${expectedAddress}: the built-in settings were not read`);
+  // 5190 may be held on this machine (a dev server, a forward): then pusula says so and listens elsewhere, which is right.
+  const note = checkAddress(address, output);
+  if (note) {
+    console.log(note);
   }
 
   await check(`${address}/`, 'the page', (_, body) => body.includes('<title>pusula</title>'));

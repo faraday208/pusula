@@ -47,8 +47,10 @@ mv pusula-*-linux-x64 pusula && chmod +x pusula   # Mac'te dosyanın sonu osx-ar
 
 Windows'ta `pusula-…-win-x64.exe`'ye çift tıkla ya da bir terminalde aynı argümanlarla çalıştır. pusula
 <http://localhost:5190> adresini tarayıcında açar; penceresini kapatınca (ya da Ctrl+C) durur. Çalışırken yeniden
-başlatılırsa çalışanı açar, ama yalnız senin pusulan olduğunu kanıtlarsa (bkz. *Gizlilik ve güvenlik*); yoksa "port
-kullanımda" diye durur. `--no-browser` tarayıcıyı kapalı bırakır; SSH üzerinden ya da masaüstü olmayan bir Linux'ta
+başlatılırsa çalışanı açar, ama yalnız senin pusulan olduğunu kanıtlarsa (bkz. *Gizlilik ve güvenlik*); yoksa `--urls` ile "port
+kullanımda" diye durur. 5190 portu doluysa pusula boş bir port kullanır ve bunu söyler; ikinci çift tık, çalışan pusula da çift tıkla (ya da komut satırında klasör verilmeden) başlatıldıysa yine onu
+bulur; değilse yenisi başlar. Windows'ta bir hatadan sonra pencere, okuyabilesin diye Enter'a basana kadar açık kalır. `--urls` ile seçtiğin
+port hiç değiştirilmez. `--no-browser` tarayıcıyı kapalı bırakır; SSH üzerinden ya da masaüstü olmayan bir Linux'ta
 zaten açılmaz. Her sürüm dosyalarının SHA-256 özetlerini `SHA256SUMS.txt`'de verir.
 
 Dosyalar henüz imzalı değil, bu yüzden ilk açılışta bir adım daha gerekir:
@@ -128,7 +130,8 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
   (`$XDG_STATE_HOME` tanımlıysa `$XDG_STATE_HOME/pusula/`), Windows'ta `%LOCALAPPDATA%\pusula\` içinde durur; bir
   haftalığı saklanır, klasörü silersen hepsi unutulur. Aynı klasörde `instance-key` durur: tarayıcıyı açan bir pusulanın yaptığı, yalnız
   senin okuyabildiğin rastgele bir anahtar; ikinci pusula, portu tutanın senin pusulan olduğunu bununla doğrular, sonra
-  o sayfayı açar.
+  o sayfayı açar. Yanında `instance-address` o pusulanın açtığı adresi tutar (yalnız loopback adresi; o pusula durunca silinir, yalnız komut satırında klasör verilmeden başlatılan pusula yazar); ikinci pusula onu başka
+  bir portta bile bulur, ama anahtarın kanıtı olmadan hiçbir adres açılmaz.
 - **Yalnız `.md` dosyaları indekslenir ve sunulur**; `settings.json`, kimlik bilgileri ve öteki dosyalar sunucudan çıkmaz.
 - **Not klasörlerini tanımak notlarının küçük bir kısmını okur.** `.obsidian/` klasörü olmayan bir not klasörünü ayırt
   etmek için **Klasör seç…** notlarından bazılarının (klasör başına en çok 20) ilk birkaç kilobaytını okur ve yalnız

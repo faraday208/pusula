@@ -58,7 +58,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, NoUpdateCheck }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--no-browser", NoUpdateCheck }]);
         }
         finally
         {
@@ -174,7 +174,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file, NoUpdateCheck }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file, "--no-browser", NoUpdateCheck }]);
         }
         finally
         {
@@ -199,7 +199,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file, NoUpdateCheck }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file, "--no-browser", NoUpdateCheck }]);
         }
         finally
         {

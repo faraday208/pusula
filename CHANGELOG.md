@@ -6,6 +6,19 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- When port 5190 cannot be used (something holds it, such as a forward that left connections behind), pusula listens on
+  a free port on `127.0.0.1` and says so in one line, instead of stopping with "address already in use". Only for the
+  default address: a port given with `--urls` or the environment is never changed.
+- A pusula that opens the browser (without folders on the command line) records its address in `instance-address` in the state folder (same rules as
+  `instance-key`; loopback addresses only). A second double click reads it and opens the running pusula, also when that
+  one listens on another port, but only after it proves itself with the key. Only a pusula started without folders on
+  the command line records and looks it up. The record is removed when that pusula stops, if it still holds its own
+  address; a pusula that crashes leaves it, and the next start checks it.
+- On Windows, when pusula owns its console window (a double click), an error now waits for Enter ("Press Enter to close
+  this window.") instead of closing the window at once; an exception that nothing handles does the same.
+
 ## [0.4.0-rc.1] - 2026-11-02
 
 A pre-release, for trying the downloads before 0.4.0: a double click opens pusula in the browser, and pusula says when

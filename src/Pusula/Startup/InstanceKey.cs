@@ -196,7 +196,7 @@ internal static partial class InstanceKey
     }
 
     // The key file and the folder above it, by their modes. Windows has none to look at (see the remarks).
-    private static bool IsTrusted(string folder, string file)
+    internal static bool IsTrusted(string folder, string file)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -213,10 +213,10 @@ internal static partial class InstanceKey
     }
 
     // A folder that is a link leads wherever whoever made it chose (a shown folder, a folder of others). Windows has none of this to look at.
-    private static bool IsLink(string folder) =>
+    internal static bool IsLink(string folder) =>
         !OperatingSystem.IsWindows() && new DirectoryInfo(folder).LinkTarget is not null;
 
-    private static bool OnlyTheUserCanWrite(string folder) =>
+    internal static bool OnlyTheUserCanWrite(string folder) =>
         OperatingSystem.IsWindows() || (File.GetUnixFileMode(folder) & OtherWrite) == 0;
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Made the instance key {File}: a second pusula started by a double click can find this one")]
