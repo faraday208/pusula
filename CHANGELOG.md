@@ -6,6 +6,11 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0-rc.2] - 2026-11-03
+
+The second pre-release: a double click now opens pusula even when port 5190 is taken, finds the pusula that runs, and
+on Windows keeps the window open when something goes wrong.
+
 ### Added
 
 - When port 5190 cannot be used (something holds it, such as a forward that left connections behind), pusula listens on
@@ -122,7 +127,8 @@ The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).
 - English and Turkish user interface; keyboard and touch friendly.
 - A synthetic demo in `samples/`; the version is shown on the Sources page and printed by `--version`.
 
-[Unreleased]: https://github.com/faraday208/pusula/compare/v0.4.0-rc.1...HEAD
+[Unreleased]: https://github.com/faraday208/pusula/compare/v0.4.0-rc.2...HEAD
+[0.4.0-rc.2]: https://github.com/faraday208/pusula/releases/tag/v0.4.0-rc.2
 [0.4.0-rc.1]: https://github.com/faraday208/pusula/releases/tag/v0.4.0-rc.1
 [0.3.0]: https://github.com/faraday208/pusula/releases/tag/v0.3.0
 [0.2.0]: https://github.com/faraday208/pusula/releases/tag/v0.2.0
