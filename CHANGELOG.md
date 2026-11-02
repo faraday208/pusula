@@ -6,6 +6,11 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0-rc.1] - 2026-11-02
+
+A pre-release, for trying the downloads before 0.4.0: a double click opens pusula in the browser, and pusula says when
+a newer release is out.
+
 ### Added
 
 - The downloaded file opens the page in the browser once it listens, so a double click on it is enough. Started again
@@ -104,7 +109,8 @@ The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).
 - English and Turkish user interface; keyboard and touch friendly.
 - A synthetic demo in `samples/`; the version is shown on the Sources page and printed by `--version`.
 
-[Unreleased]: https://github.com/faraday208/pusula/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/faraday208/pusula/compare/v0.4.0-rc.1...HEAD
+[0.4.0-rc.1]: https://github.com/faraday208/pusula/releases/tag/v0.4.0-rc.1
 [0.3.0]: https://github.com/faraday208/pusula/releases/tag/v0.3.0
 [0.2.0]: https://github.com/faraday208/pusula/releases/tag/v0.2.0
 [0.1.0]: https://github.com/faraday208/pusula/releases/tag/v0.1.0
