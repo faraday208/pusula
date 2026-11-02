@@ -18,7 +18,7 @@ import {
   pushRecent, quickEntries, quickSearch, readableWikilinks, recentJson, recentResults, RELEASES_URL, REMOTE_EDIT_FLAG, resolveRoute, savedPosition,
   scrollTargetTop, skillFile, slugify, sortTags, SOURCE_REFUSALS, sourceErrorCode, sourceFailure, SOURCES_HASH, sourceKey,
   sourceLock, sourcesAccess, sourcesHost, splitIssues, splitLayers, summarizeChange, tagKey, tokenParts, trLocative, uiStateJson,
-  withPosition,
+  updateAskDelay, updateAskDue, updateNotice, withPosition,
 } from './core.js';
 import { getLang, initLang, setLang, setVariant, t, tn } from './i18n.js';
 
@@ -59,6 +59,7 @@ const state = {
   sourcesAccess: { canEdit: false, closed: null, fileError: null }, // may this browser add and remove sources, why not, what is wrong with the file (see `sourcesAccess`)
   host: { machine: null, remoteEdit: false }, // the computer the server runs on, and whether it lets other machines change the list (see `sourcesHost`)
   appVersion: null, // the version of pusula the server says it is (see `appVersion`); null when it says none, as an older server does
+  update: null, // a newer release, `{ latest, url }` (see `updateNotice`); null when none is out, the check is off or the server has no such endpoint
   listed: false, // the server has answered for its sources once, or has been tried and did not: before that the page cannot tell that no source is open
   sourceEdit: { // what the sources page keeps while it is drawn again: the form under the cards, and the card that asks "remove it?"
     path: '', name: '', // what is typed in the form
@@ -520,6 +521,59 @@ function sourceItemUrl(id) {
 function setError(error) {
   state.error = error;
   state.errorAt = new Date();
+}
+
+let updateTimer = 0;
+let updateWaits = 0; // answers in a row that said the first check was not done
+let updateAskedAt = 0;
+
+/**
+ * Asks the server whether a newer pusula is out (see `updateNotice`), and shows the notice if so. The page opened by the first start comes
+ * before the first check of the server is done: it asks again every few seconds until there is an answer, and then once an hour (and when it
+ * comes back into view after more than an hour), so that a tab left open sees a release too. It asks this server only. It is quiet about
+ * everything else: an older server has no such endpoint (404), a check that is off or has found nothing says no, and none of it is an
+ * error of the page. It does not touch what the page keeps about how fresh its content is (`getJson` does).
+ */
+async function loadUpdate() {
+  window.clearTimeout(updateTimer);
+  updateAskedAt = Date.now();
+  let data = null;
+  let answered = false;
+  try {
+    data = await askUpdate();
+    answered = true;
+  } catch {
+    // no answer this time: what the page shows stays, and it asks again later
+  }
+  if (answered) {
+    const before = state.update?.latest ?? null;
+    state.update = updateNotice(data);
+    renderUpdate();
+    // The sources page is drawn again only when its line changes, and not before the list of sources has been read.
+    if (state.listed && (state.update?.latest ?? null) !== before) redrawSources();
+  }
+  const waiting = data?.state === 'NotChecked';
+  updateWaits = waiting ? updateWaits + 1 : 0;
+  updateTimer = window.setTimeout(loadUpdate, updateAskDelay(waiting, updateWaits));
+}
+
+async function askUpdate() {
+  const response = await fetch('/api/update', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+  if (!response.ok) throw new ApiError(response.status, '', '');
+  return response.json();
+}
+
+/** The link in the top bar to the page of the newer release, in the language of the page; hidden when there is none. Its address and words are set as text, never as markup. */
+function renderUpdate() {
+  const update = state.update;
+  refs.updateLink.hidden = update === null;
+  if (update === null) {
+    refs.updateLink.removeAttribute('href');
+    return;
+  }
+  refs.updateLink.href = update.url;
+  refs.updateLink.title = t('update.title', { latest: update.latest });
+  refs.updateText.textContent = t('update.link', { latest: update.latest });
 }
 
 /**
@@ -1212,6 +1266,7 @@ function applyStaticI18n() {
   setLive(state.live);
   updateStale();
   updateSourceSwitch();
+  renderUpdate();
 }
 
 function changeLanguage(lang) {
@@ -3094,7 +3149,18 @@ function versionLine() {
   link.rel = 'noopener noreferrer';
   link.dataset.keep = 'releases';
   line.append(separator, link);
+  if (state.update !== null) line.append(updateLink());
   return line;
+}
+
+/** Beside the version: the newer release that is out, as a link to its page (a new tab, like the release notes); the dot is part of its words. */
+function updateLink() {
+  const link = el('a', 'release-link', t('about.update', { latest: state.update.latest }));
+  link.href = state.update.url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.dataset.keep = 'update';
+  return link;
 }
 
 /**
@@ -4839,6 +4905,8 @@ function cacheRefs() {
   refs.skip = document.getElementById('skip-link');
   refs.toasts = document.getElementById('toasts');
   refs.lastChange = document.getElementById('last-change');
+  refs.updateLink = document.getElementById('update-link');
+  refs.updateText = document.getElementById('update-text');
   refs.pill = document.getElementById('change-pill');
   refs.pillText = document.getElementById('change-pill-text');
   refs.announce = document.getElementById('announce');
@@ -4896,6 +4964,7 @@ function bindEvents() {
     } else {
       renderLastChange(); // the time it says has gone on while nobody looked
       updateAges();
+      if (updateAskDue(updateAskedAt, Date.now())) loadUpdate();
     }
   });
   // The pill is for a reader who has not moved: a scroll of their own ends it (the page's own, which puts a place back, is not one).
@@ -5008,6 +5077,7 @@ async function boot() {
   bindEvents();
   state.route = parseRoute(window.location.hash);
   updateLayoutMode();
+  loadUpdate(); // beside the first load, which does not wait for it; it then asks again on its own (see loadUpdate)
   // A reload comes back to its own history entry, which has the place the reader was at. The live connection is made by the
   // page that opens a source (see `openRoute`): with no source open there is nothing to keep up to date.
   await loadFresh();

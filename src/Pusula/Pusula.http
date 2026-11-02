@@ -301,6 +301,19 @@ Accept: application/json
 GET {{baseUrl}}/api/sources/{{source}}/changes
 Accept: application/json
 
+### Is a newer pusula out? (the notice of a newer release)
+# The downloaded pusula asks GitHub (api.github.com) for its latest release when it starts and then once a day; that is the only request
+# it makes, and nothing is downloaded. --Pusula:CheckForUpdates false turns it off (it is off in "dotnet run" unless the setting says true).
+#   "state"      Off (the check is off) | NotChecked (no answer yet) | UpToDate (the latest release is this version or an older one) |
+#                Newer (a newer release is out) | Failed (the check failed and there is no earlier answer; the next one is a day later)
+#   "current"    the version of this pusula
+#   "latest"     the version of the latest release, without the "v" of its tag; left out until a check has found it
+#   "url"        its page on GitHub, made from the tag (never taken from the answer of GitHub); left out with "latest"
+#   "checkedAt"  when the answer was found (for Failed, when it was tried); left out until a check has run
+# Nothing about the folders that are shown is in the answer, so there is no same-machine rule; the Host check still applies.
+GET {{baseUrl}}/api/update
+Accept: application/json
+
 ### Live events (server-sent events): "ready" first, then one "changed" event per new index version of this source. The request stays open.
 GET {{baseUrl}}/api/sources/{{source}}/events
 Accept: text/event-stream

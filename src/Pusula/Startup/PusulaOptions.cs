@@ -55,6 +55,15 @@ internal sealed class PusulaOptions
     /// </summary>
     public bool? OpenBrowser { get; set; }
 
+    /// <summary>Configuration key of <see cref="CheckForUpdates"/>.</summary>
+    internal const string CheckForUpdatesKey = SectionName + ":CheckForUpdates";
+
+    /// <summary>
+    /// Whether pusula asks GitHub for its latest release, at the start and then once a day, to tell when a newer one is out. Nothing is
+    /// downloaded. Unset, it asks outside Development only; see <c>UpdateService.ShouldCheck</c>.
+    /// </summary>
+    public bool? CheckForUpdates { get; set; }
+
     /// <summary>The names in <see cref="AllowedHosts"/>: trimmed, without empty entries.</summary>
     public string[] ParseAllowedHosts() =>
         AllowedHosts?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];

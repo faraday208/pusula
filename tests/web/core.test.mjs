@@ -3531,6 +3531,68 @@ describe('RELEASES_URL (where the release notes of pusula are)', () => {
   });
 });
 
+describe('updateNotice (a newer pusula, from the answer of /api/update)', () => {
+  const PAGE = 'https://github.com/faraday208/pusula/releases/tag/';
+  const newer = { state: 'Newer', current: '0.3.0', latest: '0.4.0', url: `${PAGE}v0.4.0`, checkedAt: '2026-10-02T12:00:00+00:00' };
+
+  it('a newer release: its version and the address of its page', () => {
+    assert.deepEqual(core.updateNotice(newer), { latest: '0.4.0', url: `${PAGE}v0.4.0` });
+    assert.deepEqual(core.updateNotice({ ...newer, latest: '0.4.0-rc.1', url: `${PAGE}v0.4.0-rc.1` }), { latest: '0.4.0-rc.1', url: `${PAGE}v0.4.0-rc.1` });
+    assert.deepEqual(core.updateNotice({ state: 'Newer', latest: '10.20.30', url: `${PAGE}v10.20.30` }), { latest: '10.20.30', url: `${PAGE}v10.20.30` }, 'the other members are not needed');
+  });
+
+  it('the page of releases is the one the sources page already names', () => {
+    assert.equal(core.RELEASE_PAGE_PREFIX, PAGE);
+    assert.ok(core.RELEASE_PAGE_PREFIX.startsWith(core.RELEASES_URL));
+  });
+
+  it('every other state is no notice', () => {
+    for (const state of ['Off', 'NotChecked', 'UpToDate', 'Failed', 'newer', 'NEWER', '', null, undefined, 4]) {
+      assert.equal(core.updateNotice({ ...newer, state }), null, String(state));
+    }
+  });
+
+  it('an answer that is not an object, or that has no state, is no notice (an older server answers 404, and the page gets nothing)', () => {
+    for (const data of [null, undefined, 'Newer', 7, [], {}, [newer], { latest: '0.4.0', url: `${PAGE}v0.4.0` }]) assert.equal(core.updateNotice(data), null, JSON.stringify(data));
+  });
+
+  it('a latest that is not a version number is no notice', () => {
+    for (const latest of [undefined, null, 4, '', ' 0.4.0', '0.4.0 ', 'v0.4.0', '0.4', '0.4.0.1', '0.4.0-', '0.4.0+build', '<b>0.4.0</b>', '0.4.0\n', 'latest', ['0.4.0']]) {
+      assert.equal(core.updateNotice({ ...newer, latest }), null, JSON.stringify(latest));
+    }
+  });
+
+  it('a url that is not the page of a release on GitHub is no notice', () => {
+    const wrong = [
+      undefined, null, 4, '', 'https://github.com/faraday208/pusula/releases', 'https://github.com/faraday208/pusula/releases/tag/',
+      'http://github.com/faraday208/pusula/releases/tag/v0.4.0', 'https://example.invalid/faraday208/pusula/releases/tag/v0.4.0',
+      'https://github.com.example.invalid/faraday208/pusula/releases/tag/v0.4.0', 'https://github.com/other/pusula/releases/tag/v0.4.0',
+      'https://github.com/faraday208/pusula/releases/download/v0.4.0/pusula', ` ${PAGE}v0.4.0`, 'javascript:alert(1)', 'data:text/html,x',
+      `${PAGE}v0.4.0?x=1`, `${PAGE}v0.4.0#x`, `${PAGE}v0.4.0/../../x`, `${PAGE}v0.4.0 `, `${PAGE}<b>`, `${PAGE}v0.4.0\n`, [`${PAGE}v0.4.0`],
+    ];
+    for (const url of wrong) assert.equal(core.updateNotice({ ...newer, url }), null, JSON.stringify(url));
+  });
+});
+
+describe('updateAskDelay and updateAskDue (when the page asks /api/update again)', () => {
+  it('every 5 s while the first check is not done, at most 12 times in a row, then hourly', () => {
+    for (let waits = 1; waits < 12; waits++) assert.equal(core.updateAskDelay(true, waits), 5000, String(waits));
+    assert.equal(core.updateAskDelay(true, 12), 3600000);
+    assert.equal(core.updateAskDelay(true, 99), 3600000);
+  });
+
+  it('once an hour for every other answer', () => {
+    assert.equal(core.updateAskDelay(false, 0), 3600000);
+    assert.equal(core.updateAskDelay(false, 5), 3600000);
+  });
+
+  it('a page that comes back into view asks again only when the last ask was more than an hour ago', () => {
+    assert.equal(core.updateAskDue(0, 3600000), false);
+    assert.equal(core.updateAskDue(0, 3600001), true);
+    assert.equal(core.updateAskDue(1000, 1500), false);
+  });
+});
+
 describe('sourceLock (what the "add a folder" box says where this browser may not change the list)', () => {
   const FILE = '/x/sources.json';
   const host = { machine: 'devbox', remoteEdit: false };

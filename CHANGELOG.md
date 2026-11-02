@@ -14,6 +14,10 @@ All notable changes to pusula are listed here. The format follows
   only, made by a pusula that opens the browser); anything else on the port keeps the "port in use" error. `--no-browser` (or
   `--Pusula:OpenBrowser false`) leaves the browser closed. It stays closed over SSH and in `dotnet run` unless
   `--Pusula:OpenBrowser true` is given, and always on Linux without a desktop.
+- A notice when a newer release is out: a link in the top bar, a line beside the version on the Sources page and one
+  line in the terminal. The downloaded pusula asks GitHub (`api.github.com`) for its latest release when it starts and
+  then once a day; that is the only request it makes. Nothing is downloaded and nothing about your files is sent.
+  `--Pusula:CheckForUpdates false` turns it off; it is off in `dotnet run`. `GET /api/update` tells the state.
 
 ## [0.3.0] - 2026-10-12
 

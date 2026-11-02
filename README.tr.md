@@ -8,7 +8,7 @@
 bir klasörü, bir Obsidian kasasını ya da herhangi bir Markdown klasörünü okunur, bağlantılı bir site olarak gösterir.
 Hangi dosya hangisine bağlanıyor, ne kırık, ve Claude Code için her oturum ne yüklüyor, kaç token tutuyor.
 
-Senin bilgisayarında çalışır ve yalnız okur. Hiçbir veri bilgisayarından çıkmaz.
+Senin bilgisayarında çalışır ve yalnız okur. Dosyaların ve klasörlerin hakkında hiçbir şey bilgisayarından çıkmaz; attığı tek istek yeni sürüm denetimidir, istersen [kapatabilirsin](#güncelleme).
 
 ![Bir Claude Code yapılandırmasının genel bakışı: her oturum yüklenen token, katmanlar, kırık ve yetim bağlar](docs/screenshots/overview-tr.webp)
 
@@ -135,7 +135,8 @@ değiştiremez ve klasörlerinde gezinemez; sunucu yalnız IP adreslerine, `loca
   wikilink arar. Bu yalnızca bu bilgisayarda olur; okuduğundan hiçbir şey saklanmaz ya da bir yere gönderilmez.
 - **Ağ konumlarına giden bağlar izlenmez.** Bir ağ yoluna (Windows'ta `\\sunucu\paylaşım` biçimi) giden sembolik bağ
   atlanır ve hiç açılmaz; böylece başkasının hazırladığı bir klasör pusula'yı bir sunucuya bağlanmaya zorlayamaz.
-- **Yerel öncelikli.** Hesap yok, telemetri yok, ağ gerekmez; JavaScript kütüphaneleri repoda.
+- **Yerel öncelikli.** Hesap yok, telemetri yok, pusula'nın çalışması için ağ gerekmez. Attığı tek istek yeni sürüm
+  denetimidir; kapatabilirsin (bkz. [Güncelleme](#güncelleme)). JavaScript kütüphaneleri repoda.
 
 ## Sınırlar
 
@@ -152,7 +153,12 @@ bir kayıt ve [Releases](https://github.com/faraday208/pusula/releases) altında
 - **Güncellemek için:** yeni dosyayı indir (ya da kaynakta `git pull`), sonra pusula'yı yeniden başlat.
 - **Hangi sürümü çalıştırıyorum?** Kaynaklar sayfasının en altında yazar; `pusula --version` da yazdırır.
 
-pusula güncellemeyi kendiliğinden denetlemez: ağa hiç istek atmaz.
+**Yeni sürüm denetimi.** İndirdiğin pusula açılırken, sonra da çalıştığı sürece günde bir kez GitHub'a (`api.github.com`)
+son sürümünü sorar ve daha yeni bir sürüm çıkmışsa bunu gösterir: üst çubukta bir bağ, Kaynaklar sayfasının altında bir
+satır ve terminalde bir satır. pusula'nın attığı tek istek budur; hiçbir şey indirilmez ya da kurulmaz. Dosyaların ve
+klasörlerin hakkında hiçbir şey gönderilmez; GitHub IP adresini ve pusula sürümünü (`User-Agent` içinde, `pusula/0.3.0`
+gibi) görür. Kapatmak için pusula'yı `--Pusula:CheckForUpdates false` ile başlat. `dotnet run` ile başlatınca da kapalıdır;
+açmak için `--Pusula:CheckForUpdates true` ver.
 
 ## Geliştirme
 

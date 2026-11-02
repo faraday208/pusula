@@ -72,6 +72,9 @@ internal sealed class PusulaFactory : WebApplicationFactory<Program>
         // No test opens a browser on the machine it runs on, in Production either.
         builder.UseSetting(PusulaOptions.OpenBrowserKey, "false");
 
+        // No test asks GitHub for a release, in Production either: a test that wants the check gives its own setting and handler (see UpdateEndpointTests).
+        builder.UseSetting(PusulaOptions.CheckForUpdatesKey, "false");
+
         if (_root is not null)
         {
             builder.UseSetting("Pusula:Root", _root);

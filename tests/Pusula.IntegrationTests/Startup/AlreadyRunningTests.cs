@@ -38,6 +38,8 @@ public sealed class AlreadyRunningTests
         start.ArgumentList.Add($"http://127.0.0.1:{port}");
         start.ArgumentList.Add("--Pusula:OpenBrowser");
         start.ArgumentList.Add("true");
+        start.ArgumentList.Add("--Pusula:CheckForUpdates");
+        start.ArgumentList.Add("false");
         start.Environment["HOME"] = home.Path;
         start.Environment["XDG_STATE_HOME"] = home.Resolve("state");
         start.Environment["DISPLAY"] = ":0";

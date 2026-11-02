@@ -24,8 +24,9 @@ mkdirSync(notes);
 writeFileSync(join(notes, 'Note.md'), '# Note\n');
 
 const startedAt = Date.now();
-// --no-browser: the machines it runs on have no one to look at the page (a person's start opens it).
-const server = spawn(resolve(binary), [notes, '--no-browser'], { cwd: folder, stdio: ['ignore', 'pipe', 'pipe'] });
+// --no-browser: the machines it runs on have no one to look at the page (a person's start opens it). --Pusula:CheckForUpdates false: the
+// download checks for a newer release (a request to api.github.com) and this test, run by CI and by the release, makes none.
+const server = spawn(resolve(binary), [notes, '--no-browser', '--Pusula:CheckForUpdates', 'false'], { cwd: folder, stdio: ['ignore', 'pipe', 'pipe'] });
 const exited = new Promise(done => server.once('exit', done));
 let output = '';
 server.stdout.on('data', chunk => { output += chunk; });
@@ -70,6 +71,7 @@ try {
     const sources = JSON.parse(body).sources;
     return sources.length === 1 && sources[0].id === 'notes' && sources[0].available === true;
   });
+  await check(`${address}/api/update`, 'the update check is off', (_, body) => JSON.parse(body).state === 'Off');
   console.log('smoke test passed');
 } catch (error) {
   console.error(`smoke test failed: ${error.message}\n--- what pusula wrote ---\n${output}`);

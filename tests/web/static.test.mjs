@@ -62,10 +62,10 @@ describe('same-origin only', () => {
     }
   });
 
-  it('the only network calls are the API endpoints: the list of sources, what a source has (always through sourceUrl), the two reads of the folder picker (the folders the server found, and a folder through browseUrl), and the writes that change the list (always through editSources)', () => {
+  it('the only network calls are the API endpoints: the list of sources, whether a newer pusula is out, what a source has (always through sourceUrl), the two reads of the folder picker (the folders the server found, and a folder through browseUrl), and the writes that change the list (always through editSources)', () => {
     const app = code('app.js');
     const literal = [...app.matchAll(/\b(?:getJson|fetch|EventSource)\(\s*['`]([^'`]+)/g)].map((match) => match[1]);
-    assert.deepEqual(literal, ['/api/sources', '/api/browse/found'], 'a literal address is the list of sources, or the folders the picker lists first, and nothing else');
+    assert.deepEqual(literal, ['/api/update', '/api/sources', '/api/browse/found'], 'a literal address is whether a newer pusula is out, the list of sources, or the folders the picker lists first, and nothing else');
     const viaSource = [...app.matchAll(/\b(?:getJson|EventSource)\(sourceUrl\(([^)]*)\)/g)].map((match) => match[1]);
     assert.equal(viaSource.length, 5, viaSource.join(' | '));
     assert.deepEqual(viaSource.map((argument) => argument.replace(/[^a-z]/g, '').slice(0, 8)), ['tree', 'changes', 'overview', 'filepath', 'events'].map((name) => name.slice(0, 8)));
@@ -3517,6 +3517,80 @@ describe('colour of the section (WCAG contrast of the real tokens) (#7)', () => 
       assert.ok(contrast(color('--muted'), bg) >= 4.5, 'the other');
       const hovered = over(color('--hover'), bg);
       assert.ok(contrast(color('--muted'), hovered) >= 4.5, `--muted under the pointer: ${contrast(color('--muted'), hovered).toFixed(2)}`);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// The notice of a newer pusula: a link in the top bar, and beside the version on the sources page
+// ---------------------------------------------------------------------------------------------
+
+describe('the notice of a newer version', () => {
+  it('the page asks /api/update at boot without waiting for it, again while the first check is not done and then hourly, and a failure is no notice and no error', () => {
+    const app = code('app.js');
+    assert.equal([...app.matchAll(/fetch\('\/api\/update'/g)].length, 1, 'one request, in askUpdate');
+    assert.equal([...app.matchAll(/(?<!function )\bloadUpdate\(\)/g)].length, 1 + 1, 'called by boot and by the page coming back into view (the timer passes the function itself)');
+    assert.match(functionSource('boot'), /\n {2}loadUpdate\(\);[^\n]*\n(?:(?!await)[\s\S])*await loadFresh\(\)/, 'started before the first load, not awaited');
+    const load = wholeFunction('loadUpdate');
+    assert.match(load, /data = await askUpdate\(\);/);
+    assert.match(load, /updateTimer = window\.setTimeout\(loadUpdate, updateAskDelay\(waiting, updateWaits\)\);/);
+    assert.match(load, /const waiting = data\?\.state === 'NotChecked';/);
+    assert.match(load, /\} catch \{[^}]*\}/);
+    assert.ok(!/setError|showToast/.test(load), 'quiet');
+    assert.match(load, /if \(state\.listed && /, 'the sources page waits for the list');
+  });
+
+  it('it does not touch the freshness of the content: askUpdate is not getJson', () => {
+    const ask = wholeFunction('askUpdate');
+    assert.ok(!/contentAt|getJson/.test(ask + wholeFunction('loadUpdate')));
+    assert.match(functionSource('bindEvents'), /if \(updateAskDue\(updateAskedAt, Date\.now\(\)\)\) loadUpdate\(\);/);
+  });
+
+  it('the top bar link is written as text from the answer that updateNotice checked, opens a new tab and tells the new page nothing', () => {
+    const render = wholeFunction('renderUpdate');
+    assert.match(render, /refs\.updateLink\.href = update\.url;/);
+    assert.match(render, /refs\.updateText\.textContent = t\('update\.link', \{ latest: update\.latest \}\);/);
+    assert.match(render, /refs\.updateLink\.title = t\('update\.title', \{ latest: update\.latest \}\);/);
+    assert.ok(!/innerHTML/.test(render));
+    assert.match(html, /<a id="update-link" class="update-link" target="_blank" rel="noopener noreferrer" hidden>/);
+    assert.ok(!/id="update-link"[^>]*\shref=/.test(html), 'it has an address only when there is a notice');
+    assert.match(functionSource('applyStaticI18n'), /renderUpdate\(\)/, 'the other language is written at once');
+  });
+
+  it('the sources page names the release beside the version, as a link with the same care', () => {
+    assert.match(wholeFunction('versionLine'), /if \(state\.update !== null\) line\.append\(updateLink\(\)\);/);
+    const link = wholeFunction('updateLink');
+    assert.match(link, /el\('a', 'release-link', t\('about\.update', \{ latest: state\.update\.latest \}\)\)/);
+    assert.match(link, /link\.href = state\.update\.url;\s*link\.target = '_blank';\s*link\.rel = 'noopener noreferrer';/);
+    assert.ok(!/innerHTML/.test(link));
+  });
+
+  it('the addresses come from updateNotice only: the page never builds one and never requests one', () => {
+    const app = code('app.js');
+    assert.ok(!/RELEASE_PAGE_PREFIX|releases\/tag/.test(app));
+    assert.ok(!/(?:getJson|fetch|EventSource|open)\([^)]*update\.url/.test(app));
+  });
+
+  it('the link is quiet: the colour of every link, small, an arrow only under 760px (its words stay as its name, out of sight) and not at all under 480px', () => {
+    assert.match(ownRule('.update-link') ?? '', /font-size: 12px;/);
+    assert.ok(!/\scolor:/.test(ownRule('.update-link') ?? ''), 'the colour is the one of every link (--accent-text)');
+    const narrow = css.slice(css.indexOf('.update-text {'));
+    assert.match(narrow, /\.update-text\s*\{\s*position: absolute;\s*width: 1px;\s*height: 1px;/);
+    assert.ok(!/\.update-text\s*\{\s*display: none/.test(css), 'not display none');
+    assert.match(css, /\.update-link\s*\{\s*display: none;/);
+  });
+
+  it('under touch it is 40px high like the other links of the bar', () => {
+    const touch = css.slice(css.indexOf('@media (pointer: coarse)'));
+    assert.match(touch, /\.update-link,[\s\S]*?min-height: var\(--touch\);/);
+  });
+
+  for (const [theme, tokens] of [['light', lightTokens], ['dark', darkTokens]]) {
+    it(`${theme}: the link text (--accent-text) is 4.5:1 on the bar (the pointer only underlines it: a tint under it would take the ratio below 4.5 in the dark)`, () => {
+      const color = (name) => parseColor(tokens[name]);
+      const ratio = contrast(color('--accent-text'), color('--bg-side'));
+      assert.ok(ratio >= 4.5, `--accent-text on the bar: ${ratio.toFixed(2)}`);
+      assert.ok(!/:hover/.test(css.slice(css.indexOf('.update-link {'), css.indexOf('.update-icon {'))), 'no tint under the pointer');
     });
   }
 });

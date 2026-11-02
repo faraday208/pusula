@@ -33,7 +33,7 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         paths.PropertyNames().ShouldBe(
         [
             "/api/sources", "/api/sources/{id}", "/api/sources/{source}/tree", "/api/sources/{source}/file", "/api/sources/{source}/overview",
-            "/api/sources/{source}/changes", "/api/sources/{source}/events", "/api/browse", "/api/browse/found", "/api/instance",
+            "/api/sources/{source}/changes", "/api/sources/{source}/events", "/api/browse", "/api/browse/found", "/api/instance", "/api/update",
         ], ignoreOrder: true);
         paths.GetProperty("/api/sources").PropertyNames().ShouldBe(["get", "post"], ignoreOrder: true);
         paths.GetProperty("/api/sources/{id}").PropertyNames().ShouldBe(["delete"]);
@@ -72,6 +72,29 @@ public sealed class OpenApiTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         {
             description.ShouldContain(text);
         }
+    }
+
+    [Fact]
+    public async Task GetOpenApiDocument_UpdateEndpoint_DocumentsTheStatesTheRequestAndTheLinkWeMake()
+    {
+        using JsonDocument json = await fixture.Client.GetJsonAsync("/openapi/v1.json");
+        JsonElement get = json.RootElement.GetProperty("paths").GetProperty("/api/update").GetProperty("get");
+
+        get.TryGetProperty("parameters", out _).ShouldBeFalse();
+        get.GetProperty("responses").PropertyNames().ShouldBe(["200"]);
+        get.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetRawText().ShouldContain("UpdateResponse");
+        get.GetProperty("tags").EnumerateArray().Select(tag => tag.GetString()).ShouldBe(["Update"]);
+
+        string description = get.GetProperty("description").GetString()!;
+        foreach (string text in new[] { "api.github.com", "once a day", "Off", "NotChecked", "UpToDate", "Newer", "Failed", "--Pusula:CheckForUpdates false", "does not take from the answer of GitHub", "nothing is downloaded" })
+        {
+            description.ShouldContain(text);
+        }
+
+        JsonElement schemas = json.RootElement.GetProperty("components").GetProperty("schemas");
+        schemas.GetProperty("UpdateState").GetProperty("enum").EnumerateArray().Select(value => value.GetString()).ShouldBe(["Off", "NotChecked", "UpToDate", "Newer", "Failed"]);
+        schemas.GetProperty("UpdateResponse").GetProperty("properties").PropertyNames().ShouldBe(["state", "current", "latest", "url", "checkedAt"]);
+        schemas.GetProperty("UpdateResponse").GetProperty("required").EnumerateArray().Select(value => value.GetString()).ShouldBe(["state", "current"], ignoreOrder: true);
     }
 
     [Fact]

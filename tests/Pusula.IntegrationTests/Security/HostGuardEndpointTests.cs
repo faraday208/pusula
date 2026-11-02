@@ -25,7 +25,7 @@ public sealed class HostGuardEndpointTests(ApiFixture fixture) : IClassFixture<A
     [InlineData("0x7f.1")]
     public async Task Request_WithAForeignHost_Returns400OnEveryEndpoint(string host)
     {
-        foreach (string url in new[] { "/api/sources", fixture.Api("tree"), fixture.Api("overview"), fixture.Api("file?path=CLAUDE.md"), fixture.Api("events"), "/", "/index.html", "/health", "/openapi/v1.json" })
+        foreach (string url in new[] { "/api/sources", "/api/update", fixture.Api("tree"), fixture.Api("overview"), fixture.Api("file?path=CLAUDE.md"), fixture.Api("events"), "/", "/index.html", "/health", "/openapi/v1.json" })
         {
             using HttpResponseMessage response = await GetWithHostAsync(fixture.Client, url, host);
 

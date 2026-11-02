@@ -1648,6 +1648,42 @@ export function appVersion(data) {
  */
 export const RELEASES_URL = 'https://github.com/faraday208/pusula/releases';
 
+/** The start of the address of one release's page: the only kind of address the notice of a newer version links to. */
+export const RELEASE_PAGE_PREFIX = `${RELEASES_URL}/tag/`;
+
+/** How the page asks `/api/update` again: every 5 s while the server has no answer yet (12 times at most), then once an hour. */
+export const UPDATE_RETRY_MS = 5000;
+export const UPDATE_RETRY_MAX = 12;
+export const UPDATE_HOURLY_MS = 60 * 60 * 1000;
+
+/**
+ * How long to wait before asking `/api/update` again. `waiting` is whether the last answer was `NotChecked` (the first check of the server
+ * has not finished: a page opened at the start comes first), `waits` how many answers in a row said so. These asks reach this server only;
+ * the server keeps its answer and asks GitHub at the start and once a day.
+ */
+export function updateAskDelay(waiting, waits) {
+  return waiting && waits < UPDATE_RETRY_MAX ? UPDATE_RETRY_MS : UPDATE_HOURLY_MS;
+}
+
+/** Whether a page that comes back into view asks again: the last ask was more than an hour ago (`askedAt` and `now` in milliseconds). */
+export function updateAskDue(askedAt, now) {
+  return now - askedAt > UPDATE_HOURLY_MS;
+}
+
+/**
+ * The notice of a newer version, from the answer of `/api/update`: `{ latest, url }` when the state is `Newer`, `latest` is a version number
+ * (`0.4.0`, `0.4.0-rc.1`) and `url` is the page of a release (it starts with `RELEASE_PAGE_PREFIX`, and what follows is a tag's characters);
+ * null for every other answer, and for one that says something else (an older server has no such endpoint). The page links to `url` and
+ * asks it for nothing, so what it is told is checked here and not trusted.
+ */
+export function updateNotice(data) {
+  if (data?.state !== 'Newer') return null;
+  const { latest, url } = data;
+  if (typeof latest !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(latest)) return null;
+  if (typeof url !== 'string' || !url.startsWith(RELEASE_PAGE_PREFIX) || !/^[0-9A-Za-z.-]+$/.test(url.slice(RELEASE_PAGE_PREFIX.length))) return null;
+  return { latest, url };
+}
+
 /** What a server is started with to let other machines add and remove sources: the page names it where it says how else the list can be changed. */
 export const REMOTE_EDIT_FLAG = '--Pusula:AllowRemoteEdit true';
 

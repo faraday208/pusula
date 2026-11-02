@@ -8,7 +8,7 @@
 shows a folder such as `~/.claude`, an Obsidian vault or any folder of Markdown files as a readable, linked site:
 which file links to which, what is broken, and — for Claude Code — what every session loads and what it costs.
 
-It runs on your own computer and only reads. Nothing leaves your machine.
+It runs on your own computer and only reads. Nothing about your files or folders leaves your machine; the one request it makes is the check for a newer release, which you can [turn off](#updating).
 
 ![The overview of a Claude Code configuration: tokens loaded in every session, layers, broken and orphan links](docs/screenshots/overview-en.webp)
 
@@ -136,7 +136,8 @@ browse your folders, whatever the setting, and the server answers only to IP add
   wikilink. This happens on this computer only; nothing of what it reads is kept or sent anywhere.
 - **Links to network locations are never followed.** A symbolic link that leads to a network path (a `\\server\share`
   path on Windows) is skipped and never opened, so a folder that someone else made cannot make pusula contact a server.
-- **Local-first.** No accounts, no telemetry, no network access needed; the JavaScript libraries are in the repository.
+- **Local-first.** No accounts, no telemetry, and pusula needs no network to work. The one request it makes is the check
+  for a newer release, which you can turn off (see [Updating](#updating)). The JavaScript libraries are in the repository.
 
 ## Limits
 
@@ -153,7 +154,12 @@ pusula uses [semantic versioning](https://semver.org). Every release gets a tag 
 - **To update:** download the new file (or `git pull` the source), then start pusula again.
 - **Which version am I running?** It is shown at the bottom of the Sources page, and `pusula --version` prints it.
 
-pusula never checks for updates by itself: it makes no network requests.
+**The check for a newer release.** When the downloaded pusula starts, and then once a day while it runs, it asks GitHub
+(`api.github.com`) for its latest release and shows a notice when a newer one is out: a link in the top bar, a line at
+the bottom of the Sources page and one line in the terminal. That request is the only one pusula makes, and nothing is
+downloaded or installed. Nothing about your files or folders is sent; GitHub sees your IP address and the pusula
+version (in the `User-Agent`, such as `pusula/0.3.0`). To turn it off, start pusula with `--Pusula:CheckForUpdates false`.
+It is also off in `dotnet run`, unless you start it with `--Pusula:CheckForUpdates true`.
 
 ## Development
 

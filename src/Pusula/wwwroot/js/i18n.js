@@ -101,6 +101,10 @@ export const DICT = {
 
     'about.version': 'pusula v{version}',
     'about.releases': 'Sürüm notları',
+    'about.update': '· {latest} çıktı',
+
+    'update.link': 'Yeni sürüm {latest}',
+    'update.title': 'pusula {latest} çıktı: indirme sayfasını aç',
 
     'browse.title': 'Klasör seç',
     'browse.titleOn': '{machine} bilgisayarından klasör seç',
@@ -467,6 +471,10 @@ export const DICT = {
 
     'about.version': 'pusula v{version}',
     'about.releases': 'Release notes',
+    'about.update': '· {latest} is out',
+
+    'update.link': 'New version {latest}',
+    'update.title': 'pusula {latest} is out: open the download page',
 
     'browse.title': 'Choose a folder',
     'browse.titleOn': 'Choose a folder on {machine}',

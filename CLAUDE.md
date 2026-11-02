@@ -30,8 +30,9 @@ from the section of `CHANGELOG.md` for that version.
 
 - `src/Pusula`: one ASP.NET Core project (.NET 10, minimal APIs) in vertical slices. Dependencies point one way:
   `Sources/ Browse/ Tree/ Files/ Overview/ History/ LiveReload/ → Indexing/ → Links/`. `History/` also reads the list of
-  sources (`ISourceRegistry`), so that it never writes into a folder that is shown. `Security/` holds the host guard and
-  the security headers. There is no database: the file system is the source of truth, the index is an in-memory snapshot,
+  sources (`ISourceRegistry`), so that it never writes into a folder that is shown. `Updates/` is the notice of a newer
+  release and depends on none of them. `Security/` holds the host guard and the security headers. There is no database:
+  the file system is the source of truth, the index is an in-memory snapshot,
   and `History/` keeps one small summary of each source a day in pusula's state folder.
 - `src/Pusula/wwwroot`: the UI, plain HTML/CSS/JS as ES modules with no build step; `markdown-it` is vendored. It is
   built into the program with `appsettings.json` (`Startup/BuiltInContent.cs`): outside Development the page always
@@ -47,6 +48,7 @@ from the section of `CHANGELOG.md` for that version.
   daily summaries of `History/` and the instance key (`instance-key`, the proof for a second pusula; `Startup/InstanceKey.cs`)
   in its state folder (`~/.local/state/pusula/`, `%LOCALAPPDATA%\pusula\`).
 - **The UI talks to the server only through the JSON API.** The server never renders HTML; the UI never sees the file system.
+- **One request to the internet:** the update check (`Updates/`) is the only one pusula makes, and tests never make it (`Pusula:CheckForUpdates false`).
 - **Only `.md` files are indexed and served.** `/api/sources/{id}/file` looks paths up in the index, never on disk.
 - **Changing sources and browsing folders** is allowed from the same machine only (loopback or the server's own
   address; requests with forwarded headers count as remote) unless `Pusula:AllowRemoteEdit` is true. The

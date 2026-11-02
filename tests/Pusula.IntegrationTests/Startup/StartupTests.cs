@@ -17,6 +17,9 @@ public sealed class StartupTests
 {
     private static string Json(string path) => JsonSerializer.Serialize(path);
 
+    // Every test that runs the real entry point runs in Production, where the check for a newer release is on: none of them asks GitHub.
+    private const string NoUpdateCheck = "--Pusula:CheckForUpdates=false";
+
     // The real entry point, with the root given as a setting (the way Pusula:Root comes from the settings file or the
     // environment, which the early check of the command line does not see): the index host reports the folder when it
     // starts, and no server runs. A host built by the test factory is not used for this: when its start fails, it can
@@ -33,7 +36,7 @@ public sealed class StartupTests
     private static DirectoryNotFoundException StartFailure(string root)
     {
         TargetInvocationException thrown = Should.Throw<TargetInvocationException>(() =>
-            typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:Root", root, "--urls", "http://127.0.0.1:0" }]));
+            typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:Root", root, "--urls", "http://127.0.0.1:0", NoUpdateCheck }]));
         return thrown.InnerException.ShouldBeOfType<DirectoryNotFoundException>();
     }
 
@@ -55,7 +58,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, NoUpdateCheck }]);
         }
         finally
         {
@@ -89,7 +92,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { missing }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { missing, NoUpdateCheck }]);
         }
         finally
         {
@@ -115,7 +118,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--urls", "http://127.0.0.1:0", folder }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--urls", "http://127.0.0.1:0", folder, NoUpdateCheck }]);
         }
         finally
         {
@@ -171,7 +174,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file, NoUpdateCheck }]);
         }
         finally
         {
@@ -196,7 +199,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { "--Pusula:SourcesFile", file, NoUpdateCheck }]);
         }
         finally
         {
@@ -279,7 +282,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address, "--no-browser" }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address, "--no-browser", NoUpdateCheck }]);
         }
         finally
         {
@@ -315,7 +318,7 @@ public sealed class StartupTests
         Console.SetError(capturedError);
         try
         {
-            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address, "--Pusula:OpenBrowser", "true" }]);
+            exitCode = typeof(Program).Assembly.EntryPoint!.Invoke(null, [new[] { temp.Path, "--urls", address, "--Pusula:OpenBrowser", "true", NoUpdateCheck }]);
         }
         finally
         {

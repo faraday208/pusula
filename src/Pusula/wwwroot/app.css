@@ -492,6 +492,41 @@ button {
   }
 }
 
+/* A newer release is out (loadUpdate in app.js): a quiet link in the top bar to its page, in the colour of every link. Where the bar is short of
+   room only its arrow stays (760px; the words are still its name), and where there is none at all the sources page says it instead (480px). */
+.update-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.update-icon {
+  flex: none;
+}
+
+@media (max-width: 760px) {
+  .update-link {
+    padding: 6px;
+  }
+
+  .update-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.3;
@@ -4262,6 +4297,11 @@ a.source-body:focus-visible::after {
     display: none;
   }
 
+  /* So is the notice of a newer release: the sources page says it where the bar cannot. */
+  .update-link {
+    display: none;
+  }
+
   /* So is the folder icon of the switch: its arrow says it opens a menu, which the icon does not, and the name has the room (120px or more in 360px, file view). */
   .source-icon {
     display: none;
@@ -4351,6 +4391,7 @@ a.source-body:focus-visible::after {
   .fold-btn,
   .memory-link,
   .last-change,
+  .update-link,
   .change-pill,
   .budget-note a,
   .source-switch,
@@ -4433,7 +4474,8 @@ a.source-body:focus-visible::after {
     min-width: var(--touch);
   }
 
-  .last-change {
+  .last-change,
+  .update-link {
     align-items: center;
   }
 

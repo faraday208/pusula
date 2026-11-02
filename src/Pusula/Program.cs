@@ -13,6 +13,7 @@ using Pusula.Security;
 using Pusula.Sources;
 using Pusula.Startup;
 using Pusula.Tree;
+using Pusula.Updates;
 
 // The folders at the start of the command line are the folders to show. They are not passed on to the host: the
 // host's command-line provider would read an absolute path (which starts with '/') as an option.
@@ -76,6 +77,21 @@ builder.Services.AddSingleton<FolderFinder>();
 
 // What changed: the daily summaries of the sources, kept in the state folder of pusula and dated by the same clock.
 builder.Services.AddSingleton<HistoryStore>();
+
+// The notice of a newer release: the one request pusula makes to the internet. The client has no logging of its own (the factory would write
+// four lines for each request) and no timeout of its own (ReleaseLookup keeps the time).
+builder.Services.AddHttpClient(ReleaseLookup.ClientName, client => client.Timeout = Timeout.InfiniteTimeSpan).RemoveAllLoggers();
+builder.Services.AddSingleton(services => new UpdateNotice(
+    UpdateService.ShouldCheck(services.GetRequiredService<IOptions<PusulaOptions>>().Value.CheckForUpdates, services.GetRequiredService<IHostEnvironment>().IsDevelopment()),
+    AppVersion.Current,
+    services.GetRequiredService<TimeProvider>()));
+builder.Services.AddHostedService(services => new UpdateService(
+    services.GetRequiredService<UpdateNotice>(),
+    services.GetRequiredService<IHttpClientFactory>(),
+    services.GetRequiredService<IHostApplicationLifetime>(),
+    services.GetRequiredService<TimeProvider>(),
+    services.GetRequiredService<ILogger<UpdateService>>(),
+    Console.WriteLine));
 
 builder.Services.AddSingleton<SourceRegistry>();
 builder.Services.AddSingleton<ISourceRegistry>(services => services.GetRequiredService<SourceRegistry>());
@@ -159,6 +175,7 @@ app.UseRouting();
 app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapInstance();
+app.MapUpdate();
 
 // Everything about one source lives below /api/sources/{source}; the group finds the source for its endpoints.
 RouteGroupBuilder source = app.MapSources();
