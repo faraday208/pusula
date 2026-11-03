@@ -6,6 +6,34 @@ All notable changes to pusula are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-04
+
+A double click on the downloaded file opens pusula in the browser, and pusula says when a newer release is out. The code
+is that of 0.4.0-rc.2; this list is everything since 0.3.0.
+
+### Added
+
+- The downloaded file opens the page in the browser once it listens, so a double click on it is enough. `--no-browser`
+  (or `--Pusula:OpenBrowser false`) leaves the browser closed. It stays closed over SSH and in `dotnet run` unless
+  `--Pusula:OpenBrowser true` is given, and always on Linux without a desktop.
+- Started again while it runs, pusula opens the pusula that runs instead of stopping with "address already in use", but
+  only a pusula of the same user: it proves itself with a random key in pusula's state folder (`instance-key`, readable
+  by that user only, made by a pusula that opens the browser). Anything else on the port keeps the "port in use" error.
+- A pusula that opens the browser (without folders on the command line) records its address in `instance-address` in the
+  state folder (same rules as `instance-key`; loopback addresses only). A second double click reads it and opens the
+  running pusula, also when that one listens on another port, but only after it proves itself with the key. Only a
+  pusula started without folders on the command line records and looks it up. The record is removed when that pusula
+  stops, if it still holds its own address; a pusula that crashes leaves it, and the next start checks it.
+- When port 5190 cannot be used (something holds it, such as a forward that left connections behind), pusula listens on
+  a free port on `127.0.0.1` and says so in one line, instead of stopping with "address already in use". Only for the
+  default address: a port given with `--urls` or the environment is never changed.
+- A notice when a newer release is out: a link in the top bar, a line beside the version on the Sources page and one
+  line in the terminal. The downloaded pusula asks GitHub (`api.github.com`) for its latest release when it starts and
+  then once a day; that is the only request it makes. Nothing is downloaded and nothing about your files is sent.
+  `--Pusula:CheckForUpdates false` turns it off; it is off in `dotnet run`. `GET /api/update` tells the state.
+- On Windows, when pusula owns its console window (a double click), an error waits for Enter ("Press Enter to close
+  this window.") instead of closing the window at once; an exception that nothing handles does the same.
+
 ## [0.4.0-rc.2] - 2026-11-03
 
 The second pre-release: a double click now opens pusula even when port 5190 is taken, finds the pusula that runs, and
@@ -127,7 +155,8 @@ The first public release. Runs from source with the .NET 10 SDK (`dotnet run`).
 - English and Turkish user interface; keyboard and touch friendly.
 - A synthetic demo in `samples/`; the version is shown on the Sources page and printed by `--version`.
 
-[Unreleased]: https://github.com/faraday208/pusula/compare/v0.4.0-rc.2...HEAD
+[Unreleased]: https://github.com/faraday208/pusula/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/faraday208/pusula/releases/tag/v0.4.0
 [0.4.0-rc.2]: https://github.com/faraday208/pusula/releases/tag/v0.4.0-rc.2
 [0.4.0-rc.1]: https://github.com/faraday208/pusula/releases/tag/v0.4.0-rc.1
 [0.3.0]: https://github.com/faraday208/pusula/releases/tag/v0.3.0
